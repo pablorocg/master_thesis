@@ -1,46 +1,70 @@
 import pathlib2 as pathlib
 import torch
 from torch_geometric.data import Dataset, Data
+import random
 
-class MyCustomDataset(Dataset):
-    def __init__(self, 
-                 root = r"C:\Users\pablo\GitHub\tfm_prg\tractoinferno_graphs", 
-                 transform=None, 
-                 pre_transform=None):
-        super(MyCustomDataset, self).__init__(root, transform, pre_transform)
-        # self.data_files = os.listdir(self.processed_dir)
-        self.data_files = [file for file in pathlib.Path(self.processed_dir).rglob('*.pt')]
+class GraphFiberDataset(Dataset):
+    def __init__(self, root, n_files, m_data, transform=None, pre_transform=None):
+        self.n_files = n_files
+        self.m_data = m_data
+        super(GraphFiberDataset, self).__init__(root, transform, pre_transform)
 
     @property
     def raw_file_names(self):
-        # Retorna una lista de nombres de archivos crudos que necesitas procesar.
-        return ['file1', 'file2', ...]
+        # No se necesitan archivos crudos ya que estamos cargando datos ya procesados.
+        return []
 
     @property
     def processed_file_names(self):
-        # Retorna una lista de nombres de archivos procesados que se guardarán.
-        return self.data_files
+        # Seleccionar n archivos aleatoriamente para el dataset.
+        all_files = os.listdir(self.processed_dir)
+        selected_files = random.sample(all_files, self.n_files)
+        return selected_files
 
-    
+    def download(self):
+        # No es necesario ya que los datos ya están procesados.
+        pass
 
     def process(self):
-        # Procesa los archivos crudos y guarda los datos en formato de Torch en self.processed_dir.
-        for raw_path in self.raw_paths:
-            # Procesa cada archivo crudo y guarda los datos.
-            data = ... # Crea una instancia de Data aquí.
-            torch.save(data, os.path.join(self.processed_dir, 'data_x.pt'))
+        # No es necesario ya que los datos ya están procesados.
+        pass
 
     def len(self):
-        # Retorna el número de ejemplos en tu conjunto de datos.
-        return len(self.data_files)
+        return self.n_files * self.m_data
 
     def get(self, idx):
-        # Carga un ejemplo de datos por índice.
-        data = torch.load(os.path.join(self.processed_dir, self.data_files[idx]))
+        # Cargar un ejemplo de datos por índice de forma perezosa.
+        file_idx = idx // self.m_data
+        data_idx = idx % self.m_data
+        
+        # Carga el archivo seleccionado y extrae el objeto Data.
+        file_path = os.path.join(self.processed_dir, self.processed_file_names[file_idx])
+        all_data = torch.load(file_path)
+        
+        # Seleccionar m_data elementos Data de forma aleatoria.
+        data = random.sample(all_data, self.m_data)[data_idx]
+        
+        # Extraer la etiqueta del nombre del archivo.
+        label = self._extract_label(self.processed_file_names[file_idx])
+        data.y = label
+        
         return data
+    
+    def _extract_label(self, file_name):
+        # Extrae la etiqueta del nombre del archivo.
+        # Asumiendo que la etiqueta es parte del nombre del archivo.
+        label_part = file_name.split('_')[1]  # Esta es una suposición, ajusta según tu esquema de nombres.
+        label = int(label_part)  # Convierte a int o a la forma que necesites.
+        return label
 
-# Para usar tu conjunto de datos:
-dataset = MyCustomDataset(root='path/to/data')
+# Para usar el conjunto de datos:
+root_dir = 'path/to/data'
+n_files = 10  # Número de archivos a seleccionar.
+m_data = 5    # Número de elementos Data a extraer de cada archivo.
+dataset = LazyDataset(root=root_dir, n_files=n_files, m_data=m_data)
 
-dataset.processed_file_names
 
+
+# Path: src/data_loader_graph.py
+ds = GraphFiberDataset(root='tractoinferno_graphs')
+print(ds)
