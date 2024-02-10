@@ -27,7 +27,8 @@ class Multimodal_Text_Graph_Model(nn.Module):
         else:
             raise ValueError("Invalid graph model name")
         
-        self.text_projection_head = ProjectionHead(text_embedding, projection_dim)
+        # Proyectar representaciones a un espacio comun de menor dimension
+        self.text_projection_head = ProjectionHead(text_embedding, projection_dim) 
         self.graph_projection_head = ProjectionHead(graph_embedding, projection_dim)
         self.temperature = temperature
         
