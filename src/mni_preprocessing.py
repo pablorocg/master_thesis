@@ -216,8 +216,7 @@ class MNI_preprocessor:
             if verbose:
                 print(f"Tracto {tract.stem} guardado en {tract_destino[idx]} correctamente.")
         return directorio_sujeto_destino
-
-
+    
 
     def preprocess_set_of_subjects(self,
                                    file_list:list[dict], 

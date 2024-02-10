@@ -46,17 +46,17 @@ class Graph_generator:
         affine = torch.tensor(subj.affine, dtype=torch.float)
         inv_affine = torch.inverse(affine)# Obtener la inversa de la matriz de transformación con torch
         
-        
+        subject_graphs = []
 
         for tract in tracts:
             
-            subject_graphs = []
+            
             
             text_label = tract.stem.split("__")[1].split("_m")[0]# Obtener el label de la fibra
             label = ds_handler.get_label_from_tract(text_label)
             label = torch.tensor(label, dtype = torch.long)
             
-            tractogram = load_trk(str(tract), 'same')
+            tractogram = load_trk(str(tract), 'same', bbox_valid_check=False)
             streamlines, affine = tractogram.streamlines, tractogram.affine
 
             for streamline in streamlines:
@@ -77,16 +77,49 @@ class Graph_generator:
                 # Añadir el grafo a la lista de grafos
                 subject_graphs.append(graph)
 
-            # Guardar los grafos en un archivo .pt
-            # Si no existe el directorio, crearlo
-            if not self.output_dir.exists():
-                self.output_dir.mkdir(parents=True)
-            # Si no existe el directorio de la partición, crearlo
-            if not self.output_dir.joinpath(split).exists():
-                self.output_dir.joinpath(split).mkdir(parents=True)
-            torch.save(subject_graphs, self.output_dir.joinpath(split, f"{subject_id}__{text_label}.pt"))
+        # Guardar los grafos en un archivo .pt
+        # Si no existe el directorio, crearlo
+        if not self.output_dir.exists():
+            self.output_dir.mkdir(parents=True)
+        # Si no existe el directorio de la partición, crearlo
+        output_path = str(self.output_dir.joinpath(split, f"{subject_id}.pt"))
+        torch.save(subject_graphs, output_path)
+        if not self.output_dir.joinpath(split).exists():
+            self.output_dir.joinpath(split).mkdir(parents=True)
+        # Guardar los grafos en un archivo .pt
+        torch.save(subject_graphs, str(self.output_dir.joinpath(split, f"{subject_id}.pt")))
         return subject_graphs 
     
+
+    
+
+            
+
+
+        #     for streamline in streamlines:
+        #         streamline_tensor = torch.from_numpy(streamline).float()
+        #         # xyz1 = torch.cat((streamline_tensor, torch.ones(streamline_tensor.shape[0], 1)), dim=1)
+        #         # ijk = torch.mm(inv_affine, xyz1.T).T[:, :3]
+        #         # vox_ids = ijk.round().long()
+        #         # values = norm_anat[vox_ids[:, 0], vox_ids[:, 1], vox_ids[:, 2]].unsqueeze(1)
+        #         # nodes = torch.cat((streamline_tensor, values), dim=1)
+        #         nodes = streamline_tensor
+
+                
+
+        #         graph = Data(x=nodes, edge_index=torch.tensor(edges).t().contiguous(), y=label_tensor)
+        #         subject_graphs.append(graph)
+
+        # # Comprobar y crear directorios solo una vez
+        # if not output_path.parent.exists():
+        #     output_path.parent.mkdir(parents=True)
+
+        # torch.save(subject_graphs, output_path)
+        # return subject_graphs
+
+
+    
+
     def generate_graphs_from_subjects(self, subjects_list:list) -> None:
         """
         Genera los grafos de una lista de sujetos.
@@ -100,3 +133,5 @@ if __name__ == "__main__":
     ds_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\GitHub\tfm_prg\tractoinferno_preprocessed_mni", scope="testset")
     graph_generator = Graph_generator(output_dir = r"C:\Users\pablo\GitHub\tfm_prg\tractoinferno_graphs", ds_handler = ds_handler)
     graph_generator.generate_graphs_from_subjects(ds_handler.get_data())
+
+
