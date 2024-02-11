@@ -86,6 +86,7 @@ if __name__ == "__main__":
             self.num_node_feat = num_node_features # Numero de caracteristicas de cada nodo
             self.tokenizer = AutoTokenizer.from_pretrained('distilbert-base-uncased')
             self.return_tokenized_text = return_tokenized_text
+            
 
         def len(self):
             return self.num_samples
@@ -130,7 +131,7 @@ if __name__ == "__main__":
         return batched_graphs, {'input_ids': padded_input_ids, 'attention_mask': padded_attention_masks}
 
     # Crear el DataLoader con la función de collate_fn personalizada
-    dataloader = DataLoader(dataset, batch_size=512, shuffle=True, collate_fn=custom_collate_fn)
+    dataloader = DataLoader(dataset, batch_size=128, shuffle=True, collate_fn=custom_collate_fn)
     
     
     model = Multimodal_Text_Graph_Model()
@@ -145,7 +146,7 @@ if __name__ == "__main__":
     device = CFG.device
     print(f"Using device: {device}")
     model.to(device)
-    for epoch in range(100):
+    for epoch in range(2):
         for i, (graph_data, text_data) in enumerate(dataloader):
             graph_data = graph_data.to(device)
             text_data = {key: val.to(device) for key, val in text_data.items()}

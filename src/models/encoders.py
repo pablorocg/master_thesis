@@ -9,17 +9,21 @@ class Text_Encoder(nn.Module):
 
     def __init__(
                 self, 
-                pretrained_model_name_or_path: str = CFG.text_encoder_model
-                ) -> None:
+                pretrained_model_name_or_path: str = CFG.text_encoder_model,
+                trainable: bool = False) -> None:
         """
         Initializes the TextEncoder with a pretrained model.
         """
         super(Text_Encoder, self).__init__()
         self.model = AutoModel.from_pretrained(pretrained_model_name_or_path, torch_dtype=torch.float32)
-        
+        self.trainable = trainable
         # Freeze the parameters of the pretrained model to prevent updates during training.
-        for param in self.model.parameters():
-            param.requires_grad = False
+        if not self.trainable:
+            for param in self.model.parameters():
+                param.requires_grad = False
+        else:
+            for param in self.model.parameters():
+                param.requires_grad = True
 
     def forward(self, tokenized_text: dict) -> torch.Tensor:
         """Performs a forward pass through the model to obtain embeddings."""

@@ -18,7 +18,7 @@ class CFG:
     # model_name = 'resnet50'
     # image_embedding = 2048
     graph_model_name = "GraphConvolutionalNetwork"
-    graph_embedding = 2048
+    graph_embedding = 1024
     # 3 si solo coordenadas y 4 si coordenadas y valor en imagen T1w
     graph_channels = 4
 
