@@ -85,19 +85,19 @@ class Multimodal_Text_Graph_Model(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         graph, text = batch
         loss = self.forward(graph, text)
-        self.log('train_loss', loss)
+        self.log('train_loss', loss, batch_size=128)
         return loss
     
     def validation_step(self, batch, batch_idx):
         graph, text = batch
         loss = self.forward(graph, text)
-        self.log('val_loss', loss)
+        self.log('val_loss', loss, batch_size=128)
         return loss
     
     def test_step(self, batch, batch_idx):
         graph, text = batch
         loss = self.forward(graph, text)
-        self.log('test_loss', loss)
+        self.log('test_loss', loss, batch_size=128)
         return loss
 
     def configure_optimizers(self):
@@ -181,13 +181,13 @@ class TextGraphDataModule(LightningDataModule):
         
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, collate_fn=self.custom_collate_fn, num_workers=self.num_workers)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, collate_fn=self.custom_collate_fn, num_workers=self.num_workers, persistent_workers=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.custom_collate_fn, num_workers=self.num_workers)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.custom_collate_fn, num_workers=self.num_workers, persistent_workers=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.custom_collate_fn, num_workers=self.num_workers)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.custom_collate_fn, num_workers=self.num_workers, persistent_workers=True)
     
 
     @staticmethod
