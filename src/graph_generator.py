@@ -3,10 +3,9 @@ from nibabel import load
 from dipy.io.streamline import load_trk
 import numpy as np
 import torch
-from torch_geometric.data import Data
+from torch_geometric.data import Data, Batch
 from dataset_handlers import Tractoinferno_handler
 from tqdm import tqdm
-
 
 class Graph_generator:
     def __init__(self, 
@@ -35,23 +34,11 @@ class Graph_generator:
         """
 
         subject_id = subject_dict["subject"]      # str (subj-01, subj-02, etc)
-        t1_img = subject_dict["T1w"]          # Path (ruta a la imagen T1w)
         tracts = subject_dict["tracts"]       # List[Path] (lista de rutas a las fibras del sujeto)
         split = subject_dict["subject_split"] # str (trainset, testset o validset)
         
-        subj = load(str(t1_img))
-        anat = torch.tensor(subj.get_fdata(), dtype=torch.float)
-        norm_anat = self.min_max_normalization(anat)# Normalizar la imagen
-
-        affine = torch.tensor(subj.affine, dtype=torch.float)
-        inv_affine = torch.inverse(affine)# Obtener la inversa de la matriz de transformación con torch
-        
         subject_graphs = []
-
         for tract in tracts:
-            
-            
-            
             text_label = tract.stem.split("__")[1].split("_m")[0]# Obtener el label de la fibra
             label = ds_handler.get_label_from_tract(text_label)
             label = torch.tensor(label, dtype = torch.long)
@@ -60,65 +47,23 @@ class Graph_generator:
             streamlines, affine = tractogram.streamlines, tractogram.affine
 
             for streamline in streamlines:
-                streamline_tensor = torch.from_numpy(streamline).float()
-                xyz1 = torch.cat((streamline_tensor, torch.ones(streamline_tensor.shape[0], 1)), dim=1)
-                ijk = torch.mm(inv_affine, xyz1.T).T[:, :3]
-                vox_ids = ijk.round().long()
-                # Extraer los valores de la imagen en los indices de la fibra
-                values = norm_anat[vox_ids[:, 0], vox_ids[:, 1], vox_ids[:, 2]].unsqueeze(1)
-                # Concatenar los valores de la imagen a la fibra
-                nodes = torch.cat((streamline_tensor, values), dim=1)
-                # Crear aristas no dirigidas
-                edges = [[i, i+1] for i in range(len(nodes) - 1)] + [[i+1, 1] for i in range(len(nodes) - 1)]# Torch geometric necesita que las aristas [i, j] y [j, i] esten contiguas para que sea no dirigido
-
+                nodes = torch.from_numpy(streamline).float()
+                edges = torch.tensor([[i, i+1] for i in range(nodes.size(0))] + [[i+1, i] for i in range(nodes.size(0))], dtype=torch.long).T
                 graph = Data(x = nodes, 
-                             edge_index = torch.tensor(edges).t().contiguous(),# Transponer y hacer contiguas las aristas para que sea no dirigido
+                             edge_index = edges,
                              y = label)
-                # Añadir el grafo a la lista de grafos
+                # Almacenar grafo (Data) en estructura de datos
                 subject_graphs.append(graph)
+        
+        # Convertir la lista de grafos en un solo objeto Data
+        subject_graphs = Batch.from_data_list(subject_graphs)
 
         # Guardar los grafos en un archivo .pt
-        # Si no existe el directorio, crearlo
-        if not self.output_dir.exists():
-            self.output_dir.mkdir(parents=True)
-        # Si no existe el directorio de la partición, crearlo
+        self.output_dir.mkdir(parents=True, exist_ok=True)# Si no existe el directorio de la partición, crearlo
         output_path = str(self.output_dir.joinpath(split, f"{subject_id}.pt"))
         torch.save(subject_graphs, output_path)
-        if not self.output_dir.joinpath(split).exists():
-            self.output_dir.joinpath(split).mkdir(parents=True)
-        # Guardar los grafos en un archivo .pt
-        torch.save(subject_graphs, str(self.output_dir.joinpath(split, f"{subject_id}.pt")))
-        return subject_graphs 
-    
-
-    
-
-            
-
-
-        #     for streamline in streamlines:
-        #         streamline_tensor = torch.from_numpy(streamline).float()
-        #         # xyz1 = torch.cat((streamline_tensor, torch.ones(streamline_tensor.shape[0], 1)), dim=1)
-        #         # ijk = torch.mm(inv_affine, xyz1.T).T[:, :3]
-        #         # vox_ids = ijk.round().long()
-        #         # values = norm_anat[vox_ids[:, 0], vox_ids[:, 1], vox_ids[:, 2]].unsqueeze(1)
-        #         # nodes = torch.cat((streamline_tensor, values), dim=1)
-        #         nodes = streamline_tensor
-
-                
-
-        #         graph = Data(x=nodes, edge_index=torch.tensor(edges).t().contiguous(), y=label_tensor)
-        #         subject_graphs.append(graph)
-
-        # # Comprobar y crear directorios solo una vez
-        # if not output_path.parent.exists():
-        #     output_path.parent.mkdir(parents=True)
-
-        # torch.save(subject_graphs, output_path)
-        # return subject_graphs
-
-
-    
+        
+        return subject_graphs    
 
     def generate_graphs_from_subjects(self, subjects_list:list) -> None:
         """

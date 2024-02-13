@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from transformers import AutoTokenizer
+from tabulate import tabulate
 
 class Multimodal_Text_Graph_Model(pl.LightningModule):
     """
@@ -59,8 +60,27 @@ class Multimodal_Text_Graph_Model(pl.LightningModule):
         self.text_projection_head = ProjectionHead(text_embedding, projection_dim) 
         self.graph_projection_head = ProjectionHead(graph_embedding, projection_dim)
         self.temperature = temperature
+        # self.batch_size = 128
+
+        if CFG.debug:
+            # Mostrar los hiperparámetros del modelo con tabulate
+            headers = ["Hyperparameter", "Value"]
+            data = [
+                ["Text Encoder", text_encoder_model],
+                ["Graph Encoder", graph_model_name],
+                ["Text Embedding", text_embedding],
+                ["Graph Embedding", graph_embedding],
+                ["Projection Dim", projection_dim],
+                ["Temperature", temperature]
+            ]
+            print(tabulate(data, headers=headers))
+            print("\n\n")
+           
+
         
-    def forward(self, graph, text):
+        
+    def forward(self, x):
+        graph, text = x
         # Encode the text and project the representations
         text_projections = self.text_encoder(text) # (batch_size, text_embedding)
         graph_projections = self.graph_encoder(graph) # (batch_size, graph_embedding)
@@ -83,20 +103,17 @@ class Multimodal_Text_Graph_Model(pl.LightningModule):
         return loss.mean()
 
     def training_step(self, batch, batch_idx):
-        graph, text = batch
-        loss = self.forward(graph, text)
+        loss = self.forward(batch)
         self.log('train_loss', loss, batch_size=128)
         return loss
     
     def validation_step(self, batch, batch_idx):
-        graph, text = batch
-        loss = self.forward(graph, text)
+        loss = self.forward(batch)
         self.log('val_loss', loss, batch_size=128)
         return loss
     
     def test_step(self, batch, batch_idx):
-        graph, text = batch
-        loss = self.forward(graph, text)
+        loss = self.forward(batch)
         self.log('test_loss', loss, batch_size=128)
         return loss
 
@@ -144,21 +161,30 @@ class RandomTextGraphDataset(Dataset):
 
     def get(self, idx):
         graph_data = self.generate_random_graph_data()
-        text = self.generate_random_text()
+        graph_label = int(graph_data.y)
+        text = self.generate_random_text(graph_label)
         if self.return_tokenized_text:
             return {'graph': graph_data, 'text': self.tokenizer(text, padding=True, truncation=True, return_tensors="pt")}
         else:
             return {'graph': graph_data, 'text': text}
 
-    def generate_random_text(self):
-        words = ["left arcuate fasciculus", "right arcuate fasciculus", "left cingulum", "right fornix", "left fornix", "right cingulum", "left uncinate fasciculus", "right uncinate fasciculus"]
-        return random.choice(words) # Seleccionar una palabra aleatoria
+    def generate_random_text(self, label):
+        words = ["left arcuate fasciculus", 
+                 "right arcuate fasciculus", 
+                 "left cingulum", 
+                 "right fornix", 
+                 "left fornix", 
+                 "right cingulum", 
+                 "left uncinate fasciculus", 
+                 "right uncinate fasciculus"]
+        return words[label]
 
     def generate_random_graph_data(self):
-        n = np.random.randint(20, self.num_nodes)
-        x = torch.randn(n, self.num_node_feat)# (nun_nodes, num_node_features)
-        edge_index = torch.tensor([[i, i+1] for i in range(n-1)] + [[i+1, i] for i in range(n-1)], dtype=torch.long).T # (2, num_edges)
-        return Data(x=x, edge_index=edge_index) # Crear un objeto Data de PyG
+        n = torch.randint(20, self.num_nodes, (1,)).item()  # Número aleatorio de nodos entre 20 y num_nodes-1
+        x = torch.randn(n, self.num_node_feat)  # Características de los nodos (num_nodes, num_node_features)
+        edge_index = torch.tensor([[i, i+1] for i in range(n-1)] + [[i+1, i] for i in range(n-1)], dtype=torch.long).T  # (2, num_edges)
+        label = torch.randint(0, 8, (1,), dtype=torch.long)  # Seleccionar etiqueta aleatoria de 0 a 29
+        return Data(x=x, edge_index=edge_index, y=label)  # Crear un objeto Data de PyG con la etiqueta incluida
 
 # =================================================================================================
 # DATA MODULE
@@ -195,24 +221,27 @@ class TextGraphDataModule(LightningDataModule):
         graphs = [item['graph'] for item in batch]
         input_ids = [item['text']['input_ids'].squeeze(0) for item in batch]
         attention_masks = [item['text']['attention_mask'].squeeze(0) for item in batch]
-
         padded_input_ids = pad_sequence(input_ids, batch_first=True, padding_value=0)
         padded_attention_masks = pad_sequence(attention_masks, batch_first=True, padding_value=0)
-
         batched_graphs = GeoBatch.from_data_list(graphs)
-
         return batched_graphs, {'input_ids': padded_input_ids, 'attention_mask': padded_attention_masks}
 
 
 if __name__ == "__main__":
-    pass
+    torch.set_float32_matmul_precision('medium')
     from pytorch_lightning import Trainer, LightningDataModule
+    from pytorch_lightning.callbacks import DeviceStatsMonitor #import DeviceStatsMonitor
+    from pytorch_lightning.loggers import TensorBoardLogger
+
     
-    dataset = RandomTextGraphDataset(num_samples=4000, return_tokenized_text=True)
-    datamodule = TextGraphDataModule(RandomTextGraphDataset, batch_size=128, num_workers=4)
+
+    
+    dataset = RandomTextGraphDataset(num_samples=10000, return_tokenized_text=True)
+    datamodule = TextGraphDataModule(RandomTextGraphDataset, batch_size=32, num_workers=4)
 
 
     model = Multimodal_Text_Graph_Model()
-    trainer = Trainer(max_epochs=10)  # `gpus=1` indica usar una GPU. Usa `gpus=-1` para usar todas las GPUs disponibles.
+    trainer = Trainer(max_epochs = 10, fast_dev_run=3)#, callbacks=[DeviceStatsMonitor()]
+                       
     trainer.fit(model, datamodule)
 

@@ -90,134 +90,170 @@ class Tractoinferno_handler(Dataset_handler):
             'AF_L': {
                 'id': 0,
                 'tract': 'arcuate fasciculus',
-                'localization': 'left hemisphere',
-                'description': 'The arcuate fasciculus is a major white matter tract connecting frontal and temporal lobes. It is involved in language and auditory processing.'
+                'side' : 'left',
+                'type': 'association'
             },'AF_R': {
                 'id': 1, 
-                'name': 'Right part of the arcuate fasciculus',
-                'description': 'The arcuate fasciculus is a major white matter tract connecting frontal and temporal lobes. It is involved in language and auditory processing.'
+                'tract': 'arcuate fasciculus',
+                'side' : 'right',
+                'type': 'association'
             },'CC_Fr_1': {
                 'id': 2, 
-                'name': 'Corpus callosum, Frontal lobe (most anterior part)',
-                'description': 'The corpus callosum is a major white matter tract connecting the two hemispheres. It is involved in many functions including interhemispheric transfer of motor, sensory, and cognitive information.'
+                'tract': 'corpus callosum, frontal lobe',
+                'side' : 'most anterior part of the frontal lobe', 
+                'type': 'commissural'
             },'CC_Fr_2': {
                 'id': 3, 
-                'name': 'Corpus callosum, Frontal lobe (most posterior part)',
-                'description': 'The corpus callosum is a major white matter tract connecting the two hemispheres. It is involved in many functions including interhemispheric transfer of motor, sensory, and cognitive information.'
+                'tract': 'corpus callosum, frontal lobe',
+                'side' : 'most posterior part of the frontal lobe',
+                'type': 'commissural'
             },'CC_Oc': {
                 'id': 4, 
-                'name': 'Corpus callosum, Occipital lobe',
-                'description': 'The corpus callosum is a major white matter tract connecting the two hemispheres. It is involved in many functions including interhemispheric transfer of motor, sensory, and cognitive information.'
+                'tract': 'corpus callosum, occipital lobe',
+                'side' : 'central',
+                'type': 'commissural'
             },'CC_Pa': {
                 'id': 5, 
-                'name': 'Corpus callosum, Parietal lobe',
-                'description': 'The corpus callosum is a major white matter tract connecting the two hemispheres. It is involved in many functions including interhemispheric transfer of motor, sensory, and cognitive information.'
+                'tract': 'corpus callosum, parietal lobe',
+                'side' : 'central',
+                'type': 'commissural'
             },'CC_Pr_Po': {
                 'id': 6, 
-                'name': 'Corpus callosum, Pre/Post central gyri',
-                'description': 'The corpus callosum is a major white matter tract connecting the two hemispheres. It is involved in many functions including interhemispheric transfer of motor, sensory, and cognitive information.'
+                'tract': 'corpus callosum, pre/post central gyri',
+                'side' : 'central',
+                'type': 'commissural'
             },'CG_L': {
                 'id': 7, 
-                'name': 'Left part of the cingulum',
-                'description': 'The cingulum is a major white matter tract connecting frontal and parietal lobes. It is involved in many functions including emotion, learning, and memory.'
+                'tract': 'cingulum',
+                'side' : 'left',
+                'type': 'association'
             },'CG_R': {
-                'id': 8, 
-                'name': 'Right part of the cingulum',
-                'description': 'The cingulum is a major white matter tract connecting frontal and parietal lobes. It is involved in many functions including emotion, learning, and memory.'
+                'id': 8,
+                'tract': 'cingulum',
+                'side' : 'right',
+                'type': 'association'
             },'FAT_L': {
-                'id': 9, 
-                'name': 'Left part of the frontal aslant tract',
-                'description': 'The frontal aslant tract is a major white matter tract connecting frontal and prefrontal lobes. It is involved in language processing.'
+                'id': 9,
+                'tract': 'frontal aslant tract',
+                'side' : 'left',
+                'type': 'association'
             },'FAT_R': {
-                'id': 10, 
-                'name': 'Right part of the frontal aslant tract',
-                'description': 'The frontal aslant tract is a major white matter tract connecting frontal and prefrontal lobes. It is involved in language processing.'
+                'id': 10,
+                'tract': 'frontal aslant tract',
+                'side' : 'right',
+                'type': 'association'
             },'FPT_L': {
-                'id': 11, 
-                'name': 'Left part of the frontopontine tract',
-                'description': 'The frontopontine tract is a major white matter tract connecting frontal and pontine lobes. It is involved in motor control.'
+                'id': 11,
+                'tract': 'fronto-pontine tract',
+                'side' : 'left',
+                'type': 'association' 
             },'FPT_R': {
                 'id': 12, 
-                'name': 'Right part of the frontopontine tract',
-                'description': 'The frontopontine tract is a major white matter tract connecting frontal and pontine lobes. It is involved in motor control.'
+                'tract': 'fronto-pontine tract',
+                'side' : 'right',
+                'type': 'association'
             }, 'FX_L': {
                 'id': 13,
-                'name': 'Left part of the fornix',
-                'description': 'The fornix is a major white matter tract connecting hippocampus and mammillary bodies. It is involved in memory processing.'
+                'tract': 'fornix',
+                'side' : 'left',
+                'type': 'commissural'
             },'FX_R': {
                 'id': 14,
-                'name': 'Right part of the fornix',
-                'description': 'The fornix is a major white matter tract connecting hippocampus and mammillary bodies. It is involved in memory processing.'
+                'tract': 'fornix',
+                'side' : 'right',
+                'type': 'commissural'
             },'IFOF_L': {
-                'id': 15, 
-                'name': 'Left part of the inferior fronto-occipital fasciculus',
-                'description': 'The inferior fronto-occipital fasciculus is a major white matter tract connecting frontal and occipital lobes. It is involved in language processing.'
+                'id': 15,
+                'tract': 'inferior fronto-occipital fasciculus',
+                'side' : 'left',
+                'type': 'association'
             },'IFOF_R': {
-                'id': 16, 
-                'name': 'Right part of the inferior fronto-occipital fasciculus',
-                'description': 'The inferior fronto-occipital fasciculus is a major white matter tract connecting frontal and occipital lobes. It is involved in language processing.'
+                'id': 16,
+                'tract': 'inferior fronto-occipital fasciculus',
+                'side' : 'right',
+                'type': 'association'
             },'ILF_L': {
-                'id': 17, 
-                'name': 'Left part of the inferior longitudinal fasciculus',
-                'description': 'The inferior longitudinal fasciculus is a major white matter tract connecting temporal and occipital lobes. It is involved in language processing.'
+                'id': 17,
+                'tract': 'inferior longitudinal fasciculus',
+                'side' : 'left',
+                'type': 'association'
             },'ILF_R': {
-                'id': 18, 
-                'name': 'Right part of the inferior longitudinal fasciculus',
-                'description': 'The inferior longitudinal fasciculus is a major white matter tract connecting temporal and occipital lobes. It is involved in language processing.'
+                'id': 18,
+                'tract': 'inferior longitudinal fasciculus',
+                'side' : 'right',
+                'type': 'association'
             },'MCP': {
-                'id': 19, 
-                'name': 'Middle cerebellar peduncle',
-                'description': 'The middle cerebellar peduncle is a major white matter tract connecting cerebellum and pons. It is involved in motor control.'   
+                'id': 19,
+                'tract': 'middle cerebellar peduncle',
+                'side' : 'central',
+                'type': 'commissural'
             },'MdLF_L': {
-                'id': 20, 
-                'name': 'Left part of the middle longitudinal fascicle',
-                'description': 'The middle longitudinal fascicle is a major white matter tract connecting temporal and parietal lobes. It is involved in language processing.'
+                'id': 20,
+                'tract': 'middle longitudinal fasciculus',
+                'side' : 'left',
+                'type': 'association'
             },'MdLF_R': {
-                'id': 21, 
-                'name': 'Right part of the middle longitudinal fascicle',
-                'description': 'The middle longitudinal fascicle is a major white matter tract connecting temporal and parietal lobes. It is involved in language processing.'
+                'id': 21,
+                'tract': 'middle longitudinal fasciculus',
+                'side' : 'right',
+                'type': 'association'
             },'OR_ML_L': {
-                'id': 22, 
-                'name': 'Left part of the optic radiation and Meyer’s loop',
-                'description': 'The optic radiation is a major white matter tract connecting lateral geniculate nucleus and visual cortex. It is involved in visual processing.'
+                'id': 22,
+                'tract': 'optic radiation, Meyer loop',
+                'side' : 'left',
+                'type': 'projection'
             },'OR_ML_R': {
-                'id': 23, 
-                'name': 'Right part of the optic radiation and Meyer’s loop',
-                'description': 'The optic radiation is a major white matter tract connecting lateral geniculate nucleus and visual cortex. It is involved in visual processing.'
+                'id': 23,
+                'tract': 'optic radiation, Meyer loop',
+                'side' : 'right',
+                'type': 'projection'
             },'POPT_L': {
-                'id': 24, 
-                'name': 'Left part of the parieto-occipito pontine tract',
-                'description': 'The parieto-occipito pontine tract is a major white matter tract connecting parietal and occipital lobes. It is involved in motor control.'
+                'id': 24,
+                'tract': 'pontine crossing tract',
+                'side' : 'left',
+                'type': 'commissural'
             },'POPT_R': {
                 'id': 25, 
-                'name': 'Right part of the parieto-occipito pontine tract',
-                'description': 'The parieto-occipito pontine tract is a major white matter tract connecting parietal and occipital lobes. It is involved in motor control.'
+                'tract': 'pontine crossing tract',
+                'side' : 'right',
+                'type': 'commissural'
             },'PYT_L': {
-                'id': 26, 
-                'name': 'Left part of the pyramidal tract',
-                'description': 'The pyramidal tract is a major white matter tract connecting motor cortex and spinal cord. It is involved in motor control.'
+                'id': 26,
+                'tract': 'pyramidal tract',
+                'side' : 'left',
+                'type': 'projection' 
             },'PYT_R': {
-                'id': 27, 
-                'name': 'Right part of the pyramidal tract',
-                'description': 'The pyramidal tract is a major white matter tract connecting motor cortex and spinal cord. It is involved in motor control.'
+                'id': 27,
+                'tract': 'pyramidal tract',
+                'side' : 'right',
+                'type': 'projection' 
             },'SLF_L': {
-                'id': 28, 
-                'name': 'Left part of the superior longitudinal fasciculus',
-                'description': 'The superior longitudinal fasciculus is a major white matter tract connecting frontal and parietal lobes. It is involved in many functions including language processing.'
+                'id': 28,
+                'tract': 'superior longitudinal fasciculus',
+                'side' : 'left',
+                'type': 'association' 
             },'SLF_R': {
-                'id': 29, 
-                'name': 'Right part of the superior longitudinal fasciculus',
-                'description': 'The superior longitudinal fasciculus is a major white matter tract connecting frontal and parietal lobes. It is involved in many functions including language processing.'
+                'id': 29,
+                'tract': 'superior longitudinal fasciculus',
+                'side' : 'right',
+                'type': 'association' 
             },'UF_L': {
-                'id': 30, 
-                'name': 'Left part of the uncinate fasciculus',
-                'description': 'The uncinate fasciculus is a major white matter tract connecting frontal and temporal lobes. It is involved in language processing.'
+                'id': 30,
+                'tract': 'uncinate fasciculus',
+                'side' : 'left',
+                'type': 'association'
             },'UF_R': {
-                'id': 31, 
-                'name': 'Right part of the uncinate fasciculus',
-                'description': 'The uncinate fasciculus is a major white matter tract connecting frontal and temporal lobes. It is involved in language processing.'
+                'id': 31,
+                'tract': 'uncinate fasciculus',
+                'side' : 'right',
+                'type': 'association'
             }
-            }
+        }
+    
+        # Diccionario igual pero cambiando el valor de id por la key Ej: {'0': 'AF_L', '1': 'AF_R', ...}
+        self.LABELS = {value["id"]: key for key, value in self.TRACT_LIST.items()}
+        print(self.LABELS)
+    
 
     def _get_subjects(self) -> list[pathlib.Path]:
         """

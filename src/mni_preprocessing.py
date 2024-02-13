@@ -33,11 +33,11 @@ class MNI_preprocessor:
         Returns:
         - image (nib.Nifti1Image): The loaded MNI template as a NIfTI image.
         """
-        fetch_mni_template()
+        fetch_mni_template() # Fetch the MNI 2009a T1 and T2, and 2009c T1 and T1 mask files
         T1w, mask = read_mni_template(version="c", contrast=["T1", "mask"])
         image =  nib.Nifti1Image(T1w.get_fdata() * mask.get_fdata(), T1w.affine, T1w.header)
         
-        if save:
+        if save:# Save the MNI template as a NIfTI file
             nib.save(image, save_path)
 
         return image
@@ -54,8 +54,6 @@ class MNI_preprocessor:
             nib.Nifti1Image: The resampled data.
         """
         # Check if data is a NIfTI image and if not, raise an error
-        
-
         if not isinstance(data, nib.Nifti1Image):
             raise ValueError("Data must be a NIfTI image.")
 
@@ -87,8 +85,8 @@ class MNI_preprocessor:
             transformation_matrix (numpy.ndarray): Matriz de transformación.
         """
         # Load mni template and subject image
-        template_data = self.template.get_fdata()
-        template_affine = self.template.affine
+        template_data = self.template.get_fdata() # Image (voxel grid)
+        template_affine = self.template.affine # Affine matrix
 
         moving_img = nib.load(subject)
         moving_data = moving_img.get_fdata()
@@ -158,7 +156,7 @@ class MNI_preprocessor:
 
         # Transform streamlines to target space
         tract_streamlines = transform_streamlines(streamlines = tract_streamlines, 
-                                                mat = np.linalg.inv(transform_matrix))
+                                                  mat = np.linalg.inv(transform_matrix))
         
         sft = StatefulTractogram(streamlines = tract_streamlines, 
                                 reference = self.template, 
@@ -186,6 +184,7 @@ class MNI_preprocessor:
         # El directorio de destino tiene tres subcarpetas: trainset, validset y testset, a su vez, cada carpeta contiene una subcarpeta sujeto y dentro las subcarpetas anat y tractography
         
         # Rutas de destino segun estandar BIDS
+        # Guarda la anatomia en la carpeta anat/sujeto-001__mni.nii.gz y los tractos en la carpeta tractography/tractoAF_L__mni.trk
         anat_destino = directorio_raiz_destino.joinpath(subject_split, subject_id, "anat", f"{anat.stem}__mni.nii.gz")
         tract_destino = [directorio_raiz_destino.joinpath(subject_split, subject_id, "tractography", f"{tract.stem}__mni.{output_format}") for tract in tracts]
         
@@ -257,10 +256,10 @@ class MNI_preprocessor:
 
 if __name__ == "__main__":
     # Cargar el dataset
-    validset_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\Documents\Datasets\ds003900-download\derivatives",
-                                            scope="validset")
-    trainset_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\Documents\Datasets\ds003900-download\derivatives",
-                                            scope="trainset")
+    # validset_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\Documents\Datasets\ds003900-download\derivatives",
+    #                                         scope="validset")
+    # trainset_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\Documents\Datasets\ds003900-download\derivatives",
+    #                                         scope="trainset")
     
     # Preprocesar el conjunto de test del dataset 
     testset_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\Documents\Datasets\ds003900-download\derivatives",
