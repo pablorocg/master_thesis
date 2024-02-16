@@ -1,0 +1,1 @@
+docker run -it --gpus all -v .:/app pablorg:torch_latest --name tfm_pablorg
