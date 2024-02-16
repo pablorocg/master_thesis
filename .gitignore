@@ -4,5 +4,5 @@ tractoinferno_graphs/
 tractoinferno_preprocessed_mni/
 lightning_logs/*
 runs/
-
+tractoinferno/*
 
