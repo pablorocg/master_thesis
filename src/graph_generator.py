@@ -75,8 +75,10 @@ class Graph_generator:
 
 
 if __name__ == "__main__":
-    ds_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\GitHub\tfm_prg\tractoinferno_preprocessed_mni", scope="testset")
-    graph_generator = Graph_generator(output_dir = r"C:\Users\pablo\GitHub\tfm_prg\tractoinferno_graphs", ds_handler = ds_handler)
+    ds_handler = Tractoinferno_handler(tractoinferno_path = "dataset/tractoinferno_preprocessed_mni", scope="testset")
+    print(ds_handler.get_data())
+
+    graph_generator = Graph_generator(output_dir = "dataset/tractoinferno_graphs", ds_handler = ds_handler)
     graph_generator.generate_graphs_from_subjects(ds_handler.get_data())
 
 

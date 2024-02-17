@@ -262,13 +262,13 @@ if __name__ == "__main__":
     #                                         scope="trainset")
     
     # Preprocesar el conjunto de test del dataset 
-    testset_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\Documents\Datasets\ds003900-download\derivatives",
-                                            scope="testset")
+    testset_handler = Tractoinferno_handler(tractoinferno_path = "/app/dataset/derivatives",
+                                            scope="trainset")
     testset_data = testset_handler.get_data()# list[dict{"subject":str, "subject_split":str, "T1w":Path, "tracts":[Path]}]
 
     # Preprocesar el dataset
     MNI_preprocessor().preprocess_set_of_subjects(file_list = testset_data, 
-                                                  dir_destino = pathlib.Path(r"C:\Users\pablo\GitHub\tfm_prg\tractoinferno_preprocessed_mni"), 
+                                                  dir_destino = pathlib.Path("/app/dataset/tractoinferno_preprocessed_mni"), 
                                                   num_workers = -1)
     
 

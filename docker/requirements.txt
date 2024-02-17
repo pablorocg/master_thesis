@@ -1,2 +1,9 @@
 dipy
 torch_geometric
+pathlib2
+jupyter
+ipywidgets
+ipykernel
+matplotlib
+numpy
+

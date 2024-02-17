@@ -362,7 +362,7 @@ class Tractoinferno_handler(Dataset_handler):
 
 
 if __name__ == "__main__":
-    ds_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\GitHub\tfm_prg\tractoinferno_preprocessed_mni", scope = "testset")
+    ds_handler = Tractoinferno_handler(tractoinferno_path = "/app/dataset/derivatives", scope = "testset")
     # ds_handler = Tractoinferno_handler(tractoinferno_path = r"C:\Users\pablo\Documents\Datasets\ds003900-download\derivatives", scope = "testset")
     
     paths = ds_handler.get_data()
