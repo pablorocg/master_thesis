@@ -20,11 +20,11 @@ class Graph_generator:
         self.ds_handler = ds_handler
         
     
-    def min_max_normalization(self, data:torch.tensor) -> torch.tensor:
-        """
-        Normaliza los valores de una imagen entre 0 y 1.
-        """
-        return (data - torch.min(data)) / (torch.max(data) - torch.min(data))
+    # def min_max_normalization(self, data:torch.tensor) -> torch.tensor:
+    #     """
+    #     Normaliza los valores de una imagen entre 0 y 1.
+    #     """
+    #     return (data - torch.min(data)) / (torch.max(data) - torch.min(data))
     
     
         
