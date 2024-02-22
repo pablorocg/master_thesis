@@ -28,8 +28,16 @@ class Text_Encoder(nn.Module):
     def forward(self, tokenized_text: dict) -> torch.Tensor:
         """Performs a forward pass through the model to obtain embeddings."""
 
-        output = self.model(**tokenized_text)
-        return self.meanpooling(output, tokenized_text['attention_mask'])
+        model_output = self.model(**tokenized_text)
+        # Perform pooling
+        sentence_embeddings = self.meanpooling(model_output, tokenized_text['attention_mask'])
+
+        # Normalize embeddings
+        sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
+        
+        # Devolver el token [CLS]
+        # return output.last_hidden_state[:, 0, :]
+        return sentence_embeddings
     
     def meanpooling(self, output: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Applies mean pooling on the model's output embeddings, taking the attention mask into account."""
@@ -67,8 +75,10 @@ class ProjectionHead(nn.Module):
 # ======================================GRAPH ENCODER============================================================
 
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, GATv2Conv, global_mean_pool
+from torch_geometric.nn import GCNConv, GATv2Conv, global_mean_pool, BatchNorm
+from torch_geometric.nn.pool import SAGPooling
 from torch_geometric.data import Data
+from torch.nn import ModuleList
 
 class GAT_Encoder(nn.Module):
     def __init__(self, 
@@ -83,6 +93,7 @@ class GAT_Encoder(nn.Module):
         self.conv2 = GATv2Conv(hidden_dim * 4, hidden_dim, heads=4, dropout=dropout)
         self.conv3 = GATv2Conv(hidden_dim * 4, out_channels, heads=4, dropout=dropout)
         self.relu = nn.LeakyReLU()
+        self.bn = BatchNorm(hidden_dim)
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, graph:Data):
@@ -97,6 +108,21 @@ class GAT_Encoder(nn.Module):
         out = global_mean_pool(x, batch)
         return out
     
+class Graph_Conv_Block(nn.Module):
+    def __init__(self, in_channels, out_channels, dropout):
+        super(Graph_Conv_Block, self).__init__()
+        self.conv = GCNConv(in_channels, out_channels)
+        self.bn = BatchNorm(out_channels)
+        self.relu = nn.LeakyReLU()
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, x, edge_index):
+        x = self.conv(x, edge_index)
+        x = self.relu(x)
+        x = self.bn(x)
+        x = self.dropout(x)
+        return x
+    
 class GCN_Encoder(nn.Module):
     def __init__(self, 
                  in_channels = CFG.graph_channels, 
@@ -106,21 +132,18 @@ class GCN_Encoder(nn.Module):
                  ):
         
         super(GCN_Encoder, self).__init__()
-        self.conv1 = GCNConv(in_channels, hidden_dim)
-        self.conv2 = GCNConv(hidden_dim, hidden_dim)  # Capa adicional con la misma dimensión oculta
-        self.conv3 = GCNConv(hidden_dim, out_channels)
-        self.relu = nn.LeakyReLU()
-        self.dropout = nn.Dropout(p=dropout)
+        self.first_block = Graph_Conv_Block(in_channels, hidden_dim, dropout)
+        self.intermediate_layers = ModuleList([Graph_Conv_Block(hidden_dim, hidden_dim, dropout) for _ in range(5)])
+        self.last_block = Graph_Conv_Block(hidden_dim, out_channels, dropout)
+        
 
     def forward(self, graph:Data):
         x, edge_index, batch = graph.x, graph.edge_index, graph.batch
-        x = self.conv1(x, edge_index)
-        x = self.relu(x)
-        x = self.dropout(x)
-        x = self.conv2(x, edge_index)
-        x = self.relu(x)
-        x = self.dropout(x)
-        x = self.conv3(x, edge_index)
-        out = global_mean_pool(x, batch)
-        return out
+
+        x = self.first_block(x, edge_index)
+        for layer in self.intermediate_layers:
+            x = layer(x, edge_index)
+        x = self.last_block(x, edge_index)
+
+        return global_mean_pool(x, batch)
 

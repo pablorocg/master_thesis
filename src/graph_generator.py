@@ -48,7 +48,7 @@ class Graph_generator:
 
             for streamline in streamlines:
                 nodes = torch.from_numpy(streamline).float()
-                edges = torch.tensor([[i, i+1] for i in range(nodes.size(0))] + [[i+1, i] for i in range(nodes.size(0))], dtype=torch.long).T
+                edges = torch.tensor([[i, i+1] for i in range(nodes.size(0)-1)] + [[i+1, i] for i in range(nodes.size(0)-1)], dtype=torch.long).T
                 graph = Data(x = nodes, 
                              edge_index = edges,
                              y = label)
