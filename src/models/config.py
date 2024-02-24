@@ -2,11 +2,8 @@ import torch
 
 class CFG:
     debug = True
-    batch_size = 512
+    batch_size = 128
     num_workers = 8
-    head_lr = 1e-3
-    image_encoder_lr = 1e-4
-    text_encoder_lr = 1e-5
     weight_decay = 1e-3
     patience = 1
     factor = 0.8
@@ -20,9 +17,9 @@ class CFG:
     graph_channels = 3
 
     # Posibles valores 
-    text_encoder_model = "distilbert-base-uncased"
-    text_embedding = 768
-    text_tokenizer = "distilbert-base-uncased"
+    text_encoder_model = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
+    text_embedding = 30522
+    text_tokenizer = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
     max_length = 10
 
     pretrained = True # for both image encoder and text encoder

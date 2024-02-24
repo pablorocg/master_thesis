@@ -1,10 +1,11 @@
-from encoders import GCN_Encoder, GAT_Encoder, CFG, Text_Encoder, ProjectionHead
+from encoders import GCN_Encoder, GAT_Encoder, CFG, Text_Encoder, ProjectionHead, CustomGCNLayer
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import torch_geometric
 from transformers import AutoTokenizer
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch_geometric.nn import GAE, InnerProductDecoder, global_mean_pool
 
 
 class Multimodal_Text_Graph_Model(nn.Module):
@@ -21,13 +22,15 @@ class Multimodal_Text_Graph_Model(nn.Module):
         super(Multimodal_Text_Graph_Model, self).__init__()
         
         self.text_encoder = Text_Encoder(text_encoder_model)#, text_embedding)
-        
-        if graph_model_name == "GraphConvolutionalNetwork":
-            self.graph_encoder = GCN_Encoder(graph_channels, graph_embedding)
-        elif graph_model_name == "GraphAttentionNetwork":
-            self.graph_encoder = GAT_Encoder(graph_channels, graph_embedding)
-        else:
-            raise ValueError("Invalid graph model name")
+        self.graph_encoder = GAE(GCN_Encoder(graph_channels, graph_embedding))#CustomGCNLayer(graph_channels, graph_embedding)
+        # if graph_model_name == "GraphConvolutionalNetwork":
+        #     self.graph_encoder = GCN_Encoder(graph_channels, graph_embedding)
+        # elif graph_model_name == "GraphAttentionNetwork":
+        #     self.graph_encoder = GAT_Encoder(graph_channels, graph_embedding)
+        # elif graph_model_name == "CustomGCNLayer":
+        #     self.graph_encoder = CustomGCNLayer(graph_channels, graph_embedding)
+        # else:
+        #     raise ValueError("Invalid graph model name")
         
         # Proyectar representaciones a un espacio comun de menor dimension
         self.text_projection_head = ProjectionHead(text_embedding, projection_dim) 
@@ -62,16 +65,20 @@ class Multimodal_Text_Graph_Model(nn.Module):
     
     def forward(self, graph, text):
         # Encode the text and project the representations
-        text_projections = self.text_encoder(text) # (batch_size, text_embedding)
-        graph_projections = self.graph_encoder(graph) # (batch_size, graph_embedding)
-        # print(f'Text Shape: {text_projections.shape}')
-        # print(f'Graph Shape: {graph_projections.shape}')
         
-        text_projections = self.text_projection_head(text_projections) # (batch_size, projection_dim)
-        graph_projections = self.graph_projection_head(graph_projections) # (batch_size, projection_dim)
-        # print(f'Text Shape: {text_projections.shape}')
-        # print(f'Graph Shape: {graph_projections.shape}')
+        text_encoded_projections = self.text_encoder(text) # (batch_size, text_embedding)
+        print(f'Text encoded projections: {text_encoded_projections.shape}')
+        graph_encoded_projections = self.graph_encoder.encode(graph) # (batch_size, graph_embedding)
         
+        
+        text_projections = self.text_projection_head(text_encoded_projections) # (batch_size, projection_dim)
+        graph_projections = self.graph_projection_head(global_mean_pool(graph_encoded_projections, graph.batch)) # (batch_size, projection_dim)
+        
+        # reconstructed_graph = self.graph_autoencoder.decode(graph_encoded_projections, graph.edge_index) # (num_nodes, num_nodes)
+        # print(f'Reconstructed_graph: {reconstructed_graph.shape}, Edge index shape: {graph.edge_index.shape}')
+
+        reconstruction_loss = self.graph_encoder.recon_loss(graph_encoded_projections, graph.edge_index)
+        print(f'Reconstruction loss: {reconstruction_loss}')
         # Calculating the Loss
         logits = (text_projections @ graph_projections.T) / self.temperature # (batch_size, batch_size)
         graphs_similarity = graph_projections @ graph_projections.T # (batch_size, batch_size)
@@ -81,9 +88,9 @@ class Multimodal_Text_Graph_Model(nn.Module):
         )# (batch_size, batch_size)
         texts_loss = self.cross_entropy(logits, targets, reduction='none')# (batch_size)
         graphs_loss = self.cross_entropy(logits.T, targets.T, reduction='none')# (batch_size)
-        loss =  (graphs_loss + texts_loss) / 2.0 # shape: (batch_size)
-        
-        return loss.mean()
+        contrastive_loss =  (graphs_loss + texts_loss) / 2.0 # shape: (batch_size)
+        print(f'Contrastive loss: {contrastive_loss.mean()}, Graph Reconstruction loss: {reconstruction_loss}')
+        return contrastive_loss.mean() + reconstruction_loss.mean() 
     
 
     def cross_entropy(self, preds, targets, reduction='none'):
@@ -99,6 +106,7 @@ class Multimodal_Text_Graph_Model(nn.Module):
         """
         Clasifica los logits en una de las posibles etiquetas.
         """
+        self.eval()
         results = {}
         TRACT_LIST = {
             'AF_L': {'id': 0, 'tract': 'arcuate fasciculus', 'side' : 'left', 'type': 'association'},
@@ -136,7 +144,7 @@ class Multimodal_Text_Graph_Model(nn.Module):
         }
         LABELS = {value["id"]: key for key, value in TRACT_LIST.items()}# Diccionario id -> Etiqueta
 
-        tokenizer = AutoTokenizer.from_pretrained('distilbert-base-uncased')
+        tokenizer = AutoTokenizer.from_pretrained(CFG.text_encoder_model)#'distilbert-base-uncased'
         
         for category in ['tract', 'side', 'type']:
             
@@ -148,8 +156,8 @@ class Multimodal_Text_Graph_Model(nn.Module):
             text_projections = self.text_encoder(tokenized_text_labels)
             text_projections = self.text_projection_head(text_projections)
             
-            graph_projections = self.graph_encoder(graph_batch)
-            graph_projections = self.graph_projection_head(graph_projections)
+            graph_projections = self.graph_encoder.encode(graph_batch)
+            graph_projections = self.graph_projection_head(global_mean_pool(graph_projections, graph_batch.batch))
             
             graph_embeddings_norm = F.normalize(graph_projections, p=2, dim=-1)
             text_embeddings_norm = F.normalize(text_projections, p=2, dim=-1)
@@ -197,6 +205,7 @@ if __name__ == "__main__":
     from torch_geometric.transforms import BaseTransform
     from torch_geometric.data import Dataset
     from torch_geometric.data import Batch, Data
+    from config import CFG
     # import os
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
@@ -248,7 +257,7 @@ if __name__ == "__main__":
 
     def collate_function(batch):
         """Funcion para el DataLoader"""
-        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        tokenizer = AutoTokenizer.from_pretrained(CFG.text_encoder_model)#"bert-base-uncased"
 
         TRACT_LIST = {
             'AF_L': {'id': 0, 'tract': 'arcuate fasciculus', 'side' : 'left', 'type': 'association'},
@@ -422,7 +431,7 @@ if __name__ == "__main__":
     model = Multimodal_Text_Graph_Model()
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-2, weight_decay=0.95)
-    scheduler = ReduceLROnPlateau(optimizer, patience=100, factor=0.95, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, patience=1500, factor=0.95, verbose=True)
     
     for epoch in range(params["epochs"]):
         for subject in dataset:

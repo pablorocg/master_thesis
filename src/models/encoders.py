@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoModel
+from transformers import AutoModel, AutoModelForMaskedLM
 import torch.nn as nn
 import torch.nn.functional as F
 from config import CFG
@@ -15,7 +15,11 @@ class Text_Encoder(nn.Module):
         Initializes the TextEncoder with a pretrained model.
         """
         super(Text_Encoder, self).__init__()
-        self.model = AutoModel.from_pretrained(pretrained_model_name_or_path, torch_dtype=torch.float32)
+        if pretrained_model_name_or_path == "distilbert-base-uncased":
+            self.model = AutoModel.from_pretrained(pretrained_model_name_or_path, torch_dtype=torch.float32)
+        elif pretrained_model_name_or_path == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
+            self.model = AutoModelForMaskedLM.from_pretrained("microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext", torch_dtype=torch.float32)
+
         self.trainable = trainable
         # Freeze the parameters of the pretrained model to prevent updates during training.
         if not self.trainable:
@@ -109,12 +113,13 @@ class GAT_Encoder(nn.Module):
         return out
     
 class Graph_Conv_Block(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout):
+    def __init__(self, in_channels, out_channels, dropout=False):
         super(Graph_Conv_Block, self).__init__()
         self.conv = GCNConv(in_channels, out_channels)
         self.bn = BatchNorm(out_channels)
         self.relu = nn.LeakyReLU()
-        self.dropout = nn.Dropout(p=dropout)
+        if dropout:
+            self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, edge_index):
         x = self.conv(x, edge_index)
@@ -147,3 +152,30 @@ class GCN_Encoder(nn.Module):
 
         return global_mean_pool(x, batch)
 
+
+
+# ======================================GRAPH AUTOENCODER============================================================
+import torch
+from torch_geometric.nn import GAE, InnerProductDecoder
+
+
+class CustomGCNLayer(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(CustomGCNLayer, self).__init__()
+        self.conv = GCNConv(in_channels, out_channels)
+        self.relu = nn.LeakyReLU()
+        self.bn1 = nn.BatchNorm1d(out_channels)
+        
+
+    def forward(self, graph:Data):
+        x, edge_index, batch = graph.x, graph.edge_index, graph.batch
+        x = self.conv(x, edge_index)
+        x = self.relu(x)
+        x = self.bn1(x)
+        return x
+    
+
+    
+    
+
+    

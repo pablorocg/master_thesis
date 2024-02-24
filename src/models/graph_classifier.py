@@ -49,94 +49,7 @@ class GCN_Classifier(nn.Module):
         
         return F.log_softmax(output, dim=1)
     
-
-    
-        
-    # def clasificar(self, graph_batch):
-    #     """
-    #     Clasifica los logits en una de las posibles etiquetas.
-    #     """
-    #     results = {}
-    #     TRACT_LIST = {
-    #         'AF_L': {'id': 0, 'tract': 'arcuate fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'AF_R': {'id': 1, 'tract': 'arcuate fasciculus','side' : 'right', 'type': 'association'},
-    #         'CC_Fr_1': {'id': 2, 'tract': 'corpus callosum, frontal lobe', 'side' : 'most anterior part of the frontal lobe', 'type': 'commissural'},
-    #         'CC_Fr_2': {'id': 3, 'tract': 'corpus callosum, frontal lobe', 'side' : 'most posterior part of the frontal lobe','type': 'commissural'},
-    #         'CC_Oc': {'id': 4, 'tract': 'corpus callosum, occipital lobe', 'side' : 'central', 'type': 'commissural'},
-    #         'CC_Pa': {'id': 5, 'tract': 'corpus callosum, parietal lobe', 'side' : 'central', 'type': 'commissural'},
-    #         'CC_Pr_Po': {'id': 6, 'tract': 'corpus callosum, pre/post central gyri', 'side' : 'central', 'type': 'commissural'},
-    #         'CG_L': {'id': 7, 'tract': 'cingulum', 'side' : 'left', 'type': 'association'},
-    #         'CG_R': {'id': 8, 'tract': 'cingulum', 'side' : 'right', 'type': 'association'},
-    #         'FAT_L': {'id': 9, 'tract': 'frontal aslant tract', 'side' : 'left', 'type': 'association'},
-    #         'FAT_R': {'id': 10, 'tract': 'frontal aslant tract', 'side' : 'right', 'type': 'association'},
-    #         'FPT_L': {'id': 11, 'tract': 'fronto-pontine tract', 'side' : 'left', 'type': 'association'},
-    #         'FPT_R': {'id': 12, 'tract': 'fronto-pontine tract', 'side' : 'right', 'type': 'association'},
-    #         'FX_L': {'id': 13, 'tract': 'fornix', 'side' : 'left', 'type': 'commissural'},
-    #         'FX_R': {'id': 14, 'tract': 'fornix', 'side' : 'right', 'type': 'commissural'},
-    #         'IFOF_L': {'id': 15, 'tract': 'inferior fronto-occipital fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'IFOF_R': {'id': 16, 'tract': 'inferior fronto-occipital fasciculus', 'side' : 'right', 'type': 'association'},
-    #         'ILF_L': {'id': 17, 'tract': 'inferior longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'ILF_R': {'id': 18, 'tract': 'inferior longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
-    #         'MCP': {'id': 19, 'tract': 'middle cerebellar peduncle', 'side' : 'central', 'type': 'commissural'},
-    #         'MdLF_L': {'id': 20, 'tract': 'middle longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'MdLF_R': {'id': 21, 'tract': 'middle longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
-    #         'OR_ML_L': {'id': 22, 'tract': 'optic radiation, Meyer loop', 'side' : 'left', 'type': 'projection'},
-    #         'OR_ML_R': {'id': 23, 'tract': 'optic radiation, Meyer loop', 'side' : 'right', 'type': 'projection'},
-    #         'POPT_L': {'id': 24, 'tract': 'pontine crossing tract', 'side' : 'left', 'type': 'commissural'},
-    #         'POPT_R': {'id': 25, 'tract': 'pontine crossing tract', 'side' : 'right', 'type': 'commissural'},
-    #         'PYT_L': {'id': 26, 'tract': 'pyramidal tract', 'side' : 'left', 'type': 'projection'},
-    #         'PYT_R': {'id': 27, 'tract': 'pyramidal tract', 'side' : 'right', 'type': 'projection'},
-    #         'SLF_L': {'id': 28, 'tract': 'superior longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'SLF_R': {'id': 29, 'tract': 'superior longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
-    #         'UF_L': {'id': 30, 'tract': 'uncinate fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'UF_R': {'id': 31, 'tract': 'uncinate fasciculus', 'side' : 'right', 'type': 'association'}
-    #     }
-    #     LABELS = {value["id"]: key for key, value in TRACT_LIST.items()}# Diccionario id -> Etiqueta
-
-    #     tokenizer = AutoTokenizer.from_pretrained('distilbert-base-uncased')
-        
-    #     for category in ['tract', 'side', 'type']:
-            
-    #         posible_text_labels = list(set([value[category] for key, value in TRACT_LIST.items()]))
-            
-    #         tokenized_text_labels = tokenizer(posible_text_labels, padding=True, truncation=True, return_tensors="pt")
-    #         tokenized_text_labels = {k: v.to(self.device) for k, v in tokenized_text_labels.items()}
-            
-    #         text_projections = self.text_encoder(tokenized_text_labels)
-    #         text_projections = self.text_projection_head(text_projections)
-            
-    #         graph_projections = self.graph_encoder(graph_batch)
-    #         graph_projections = self.graph_projection_head(graph_projections)
-            
-    #         graph_embeddings_norm = F.normalize(graph_projections, p=2, dim=-1)
-    #         text_embeddings_norm = F.normalize(text_projections, p=2, dim=-1)
-            
-    #         dot_similarity = text_embeddings_norm @ graph_embeddings_norm.T
-    #         max_similarities, max_indices = dot_similarity.max(dim=0)
-
-            
-    #         real_labels = graph_batch.y.tolist() #-> [0, 1, ...]
-    #         real_labels = [LABELS[label] for label in real_labels] #-> ['AF_L', 'AF_R', ...]
-    #         real_labels = [TRACT_LIST[label][category] for label in real_labels] #-> ['arcuate fasciculus', 'arcuate fasciculus', ...]
-    #         real_labels = torch.tensor([posible_text_labels.index(label) for label in real_labels]).to(self.device) #-> [0, 1, ...]
-
-    #         results[category] = {
-    #             'pred_probs': max_similarities,
-    #             'pred_labels': max_indices,
-    #             'real_labels': real_labels,
-    #             'accuracy': self.metrics[f'accuracy_{category}'](max_indices, real_labels),
-    #             'f1': self.metrics[f'f1_{category}'](max_indices, real_labels),
-    #             'precision': self.metrics[f'precision_{category}'](max_indices, real_labels),
-    #             'recall': self.metrics[f'recall_{category}'](max_indices, real_labels)
-    #         }
-            
-        
-    #     return results
-
-            
-
-
-    
+ 
 
 if __name__ == "__main__":
     
@@ -212,9 +125,58 @@ if __name__ == "__main__":
     import neptune
     from config import CFG
     import time
-     
-        
+    import matplotlib.pyplot as plt
 
+
+    TRACT_LIST = {
+            'AF_L': {'id': 0, 'tract': 'arcuate fasciculus', 'side' : 'left', 'type': 'association'},
+            'AF_R': {'id': 1, 'tract': 'arcuate fasciculus','side' : 'right', 'type': 'association'},
+            'CC_Fr_1': {'id': 2, 'tract': 'corpus callosum, frontal lobe', 'side' : 'most anterior part of the frontal lobe', 'type': 'commissural'},
+            'CC_Fr_2': {'id': 3, 'tract': 'corpus callosum, frontal lobe', 'side' : 'most posterior part of the frontal lobe','type': 'commissural'},
+            'CC_Oc': {'id': 4, 'tract': 'corpus callosum, occipital lobe', 'side' : 'central', 'type': 'commissural'},
+            'CC_Pa': {'id': 5, 'tract': 'corpus callosum, parietal lobe', 'side' : 'central', 'type': 'commissural'},
+            'CC_Pr_Po': {'id': 6, 'tract': 'corpus callosum, pre/post central gyri', 'side' : 'central', 'type': 'commissural'},
+            'CG_L': {'id': 7, 'tract': 'cingulum', 'side' : 'left', 'type': 'association'},
+            'CG_R': {'id': 8, 'tract': 'cingulum', 'side' : 'right', 'type': 'association'},
+            'FAT_L': {'id': 9, 'tract': 'frontal aslant tract', 'side' : 'left', 'type': 'association'},
+            'FAT_R': {'id': 10, 'tract': 'frontal aslant tract', 'side' : 'right', 'type': 'association'},
+            'FPT_L': {'id': 11, 'tract': 'fronto-pontine tract', 'side' : 'left', 'type': 'association'},
+            'FPT_R': {'id': 12, 'tract': 'fronto-pontine tract', 'side' : 'right', 'type': 'association'},
+            'FX_L': {'id': 13, 'tract': 'fornix', 'side' : 'left', 'type': 'commissural'},
+            'FX_R': {'id': 14, 'tract': 'fornix', 'side' : 'right', 'type': 'commissural'},
+            'IFOF_L': {'id': 15, 'tract': 'inferior fronto-occipital fasciculus', 'side' : 'left', 'type': 'association'},
+            'IFOF_R': {'id': 16, 'tract': 'inferior fronto-occipital fasciculus', 'side' : 'right', 'type': 'association'},
+            'ILF_L': {'id': 17, 'tract': 'inferior longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
+            'ILF_R': {'id': 18, 'tract': 'inferior longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
+            'MCP': {'id': 19, 'tract': 'middle cerebellar peduncle', 'side' : 'central', 'type': 'commissural'},
+            'MdLF_L': {'id': 20, 'tract': 'middle longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
+            'MdLF_R': {'id': 21, 'tract': 'middle longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
+            'OR_ML_L': {'id': 22, 'tract': 'optic radiation, Meyer loop', 'side' : 'left', 'type': 'projection'},
+            'OR_ML_R': {'id': 23, 'tract': 'optic radiation, Meyer loop', 'side' : 'right', 'type': 'projection'},
+            'POPT_L': {'id': 24, 'tract': 'pontine crossing tract', 'side' : 'left', 'type': 'commissural'},
+            'POPT_R': {'id': 25, 'tract': 'pontine crossing tract', 'side' : 'right', 'type': 'commissural'},
+            'PYT_L': {'id': 26, 'tract': 'pyramidal tract', 'side' : 'left', 'type': 'projection'},
+            'PYT_R': {'id': 27, 'tract': 'pyramidal tract', 'side' : 'right', 'type': 'projection'},
+            'SLF_L': {'id': 28, 'tract': 'superior longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
+            'SLF_R': {'id': 29, 'tract': 'superior longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
+            'UF_L': {'id': 30, 'tract': 'uncinate fasciculus', 'side' : 'left', 'type': 'association'},
+            'UF_R': {'id': 31, 'tract': 'uncinate fasciculus', 'side' : 'right', 'type': 'association'}
+        }
+    LABELS = {value["id"]: key for key, value in TRACT_LIST.items()}# Diccionario id -> Etiqueta
+    
+        
+    def generate_confusion_matrix(cm, class_names = range(32)):
+        fig, ax = plt.subplots(figsize=(15, 15))
+        im = ax.matshow(cm, cmap="Blues")
+        ax.set_xticks(range(len(class_names)))
+        ax.set_yticks(range(len(class_names)))
+        ax.set_xticklabels(class_names)
+        ax.set_yticklabels(class_names)
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("True")
+        ax.set_title("Confusion matrix")
+        fig.tight_layout()
+        return fig
     
 
     log = True
@@ -258,12 +220,13 @@ if __name__ == "__main__":
                             device = CFG.device)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.95)
-    scheduler = ReduceLROnPlateau(optimizer, patience=100, factor=0.95, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, patience=250, factor=0.95, verbose=True)
     
     accuracy_metric = torchmetrics.Accuracy(num_classes=32, task='multiclass').to(CFG.device)
     f1_metric = torchmetrics.F1Score(num_classes=32, average='weighted', task='multiclass').to(CFG.device)
     precision_metric = torchmetrics.Precision(num_classes=32, average='weighted', task='multiclass').to(CFG.device)
     recall_metric = torchmetrics.Recall(num_classes=32, average='weighted', task='multiclass').to(CFG.device)
+    confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=32, task='multiclass').to(CFG.device)
 
     
   # Assuming accuracy, f1_score, precision, recall are imported and initialized here
@@ -290,11 +253,14 @@ for epoch in range(params["epochs"]):
                 f1_metric.update(preds, graph_data.y)
                 precision_metric.update(preds, graph_data.y)
                 recall_metric.update(preds, graph_data.y)
-
+                confusion_matrix.update(preds, graph_data.y)
+                
                 acc_score = accuracy_metric.compute()
                 f1_score = f1_metric.compute()
                 prec_score = precision_metric.compute()
                 rec_score = recall_metric.compute()
+                cm = confusion_matrix.compute()
+
 
                 progress_bar.set_description(f'Epoch {epoch} Loss: {loss.item():.4f} Acc: {acc_score:.4f}')
 
@@ -311,6 +277,11 @@ for epoch in range(params["epochs"]):
                 run['precision'].log(prec_score)
                 writer.add_scalar('recall', rec_score, epoch * len(dataloader) + i)
                 run['recall'].log(rec_score)
+
+                # writer.add_image('confusion matrix', cm, epoch * len(dataloader) + i)
+                # Cada 100 batches subir la matriz de confusión
+                if i % 100 == 0:
+                    run['confusion matrix'].upload(generate_confusion_matrix(cm))
 
                 lr = optimizer.param_groups[0]['lr']
                 writer.add_scalar('learning rate', lr, epoch * len(dataloader) + i)
