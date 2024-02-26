@@ -213,13 +213,14 @@ from transformers import AutoTokenizer, AutoModel, AutoModelForMaskedLM
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-tokenizer = AutoTokenizer.from_pretrained("microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext")
-model = AutoModel.from_pretrained("microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext")
+tokenizer = AutoTokenizer.from_pretrained("medicalai/ClinicalBERT")
+model = AutoModel.from_pretrained("medicalai/ClinicalBERT")
 
 logger = SummaryWriter()
 
 all_embeddings = []
 all_labels = []
+all_captions = []
 
 for code_tract, values in TRACT_LIST.items():
     
@@ -235,18 +236,17 @@ for code_tract, values in TRACT_LIST.items():
     print(f'Tracto: {code_tract}')
     
     captions = [template.format(**values) for template in caption_templates]
-
-    output = tokenizer(captions, return_tensors="pt", padding=True, truncation=True, max_length=512)
+    all_captions.extend(captions)
+    tokenized_text = tokenizer(captions, return_tensors="pt", padding=True, truncation=True, max_length=512)
 
     with torch.no_grad():
-        model_output = model(**output)
+        model_output = model(**tokenized_text)
 
-        # Obtener el token CLS
-        sentence_embedding = model_output.last_hidden_state[:, 0, :]
-        norm_sentence_embedding = torch.nn.functional.normalize(sentence_embedding, p=2, dim=1)
-        
-        # Convertir y acumular embeddings
-        all_embeddings.append(norm_sentence_embedding.cpu())
+        embeddings = model_output[0]  # The first element of model_output contains all token embeddings.
+        mask = tokenized_text['attention_mask'].unsqueeze(-1).expand(embeddings.size()).float()
+        embeddings =  torch.sum(embeddings * mask, 1) / torch.clamp(mask.sum(1), min=1e-9)
+        print(embeddings.shape)
+        all_embeddings.append(embeddings)
         all_labels.extend([id_num] * len(captions))
 
 # Concatenar todos los embeddings en un tensor único
@@ -255,6 +255,6 @@ all_embeddings_tensor = torch.cat(all_embeddings, dim=0)
 # Convertir etiquetas a tensor
 all_labels_tensor = torch.tensor(all_labels)
 
-# Añadir embeddings acumulados a TensorBoard
+# Añadir embeddings acumulados a TensorBoard y los captions
 logger.add_embedding(all_embeddings_tensor, metadata=all_labels_tensor)
 logger.close()

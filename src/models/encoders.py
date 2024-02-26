@@ -19,6 +19,8 @@ class Text_Encoder(nn.Module):
             self.model = AutoModel.from_pretrained(pretrained_model_name_or_path, torch_dtype=torch.float32)
         elif pretrained_model_name_or_path == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
             self.model = AutoModelForMaskedLM.from_pretrained("microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext", torch_dtype=torch.float32)
+        elif pretrained_model_name_or_path == "medicalai/ClinicalBERT":
+            self.model = AutoModel.from_pretrained("medicalai/ClinicalBERT")
 
         self.trainable = trainable
         # Freeze the parameters of the pretrained model to prevent updates during training.

@@ -6,9 +6,9 @@ class CFG:
     debug = True
     epochs = 4
     batch_size = 128
-    num_workers = 8
+    num_workers = 4
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    lr = 1e-3
+    lr = 1e-2
     weight_decay = 1e-3
     patience = 1
     factor = 0.8
@@ -24,12 +24,12 @@ class CFG:
     n_hidden_blocks = 5
     graph_model_trainable = True
 
-
+# tokenizer = AutoTokenizer.from_pretrained("medicalai/ClinicalBERT")
     # Configuración del modelo de texto
-    text_tokenizer = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
-    text_encoder_model = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
-    text_embedding = 30522
-    tex_model_trainable = False
+    text_tokenizer = "medicalai/ClinicalBERT"
+    text_encoder_model = "medicalai/ClinicalBERT"
+    text_embedding = 768
+    tex_model_trainable = True
     
     temperature = 1.0
 
@@ -40,7 +40,7 @@ class CFG:
 
     # Load model directly
 
-    assert text_encoder_model in ["distilbert-base-uncased", "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"]
+    assert text_encoder_model in ["distilbert-base-uncased", "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext", "medicalai/ClinicalBERT"]
     assert graph_model_name in ["GraphConvolutionalNetwork", "GraphAttentionNetwork"]
     
     

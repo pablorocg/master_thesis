@@ -1,4 +1,6 @@
-from encoders import GCN_Encoder, GATv2_Graph_Encoder, CFG, Text_Encoder, ProjectionHead, CustomGCNLayer
+from encoders import Text_Encoder, ProjectionHead
+from torch_geometric.nn import global_mean_pool, GAE, VGAE
+from autoencoders import GCN_Encoder
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -7,6 +9,7 @@ from transformers import AutoTokenizer
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch_geometric.nn import GAE, InnerProductDecoder, global_mean_pool
 import torchmetrics
+from config import CFG
 
 
 class Multimodal_Text_Graph_Model(nn.Module):
@@ -22,12 +25,12 @@ class Multimodal_Text_Graph_Model(nn.Module):
         
         super(Multimodal_Text_Graph_Model, self).__init__()
         
-        self.text_encoder = Text_Encoder(text_encoder_model)#, text_embedding)
-        self.graph_encoder = GATv2_Graph_Encoder(graph_channels, graph_embedding)
+        self.text_encoder = Text_Encoder(text_encoder_model) #(batch_size, text_embedding)
+        self.graph_encoder = VGAE(GCN_Encoder(graph_channels, graph_embedding)) #(batch_size, text_embedding)
         
         # Proyectar representaciones a un espacio comun de menor dimension
-        self.text_projection_head = ProjectionHead(text_embedding, projection_dim) 
-        self.graph_projection_head = ProjectionHead(graph_embedding, projection_dim)
+        # self.text_projection_head = ProjectionHead(text_embedding, projection_dim) 
+        # self.graph_projection_head = ProjectionHead(graph_embedding, projection_dim)
         self.temperature = temperature
         
         self.device = device
@@ -60,14 +63,20 @@ class Multimodal_Text_Graph_Model(nn.Module):
         # Encode the text and project the representations
         
         text_encoded_projections = self.text_encoder(text) # (batch_size, text_embedding)
-        graph_encoded_projections = self.graph_encoder(graph) # (num_nodes, graph_embedding)
+        text_projections = text_encoded_projections
+
+
+        graph_encoded_projections = self.graph_encoder.encode(graph.x, graph.edge_index) # (num_nodes, graph_embedding)
+        graph_projections = global_mean_pool(graph_encoded_projections, graph.batch)
+        
+        z = graph_encoded_projections
+        loss = self.graph_encoder.recon_loss(z, graph.edge_index)
+        reconstruction_loss = loss + (1 / graph.num_graphs) * self.graph_encoder.kl_loss(z)
+        # text_projections = self.text_projection_head(text_encoded_projections) # (batch_size, projection_dim)
+        # graph_projections = self.graph_projection_head(graph_encoded_projections) # (num_nodes, projection_dim)
         
         
-        text_projections = self.text_projection_head(text_encoded_projections) # (batch_size, projection_dim)
-        graph_projections = self.graph_projection_head(graph_encoded_projections) # (num_nodes, projection_dim)
-        
-        
-        # Calculating the Loss
+        # Calculating the contrastive Loss
         logits = (text_projections @ graph_projections.T) / self.temperature # (batch_size, batch_size)
         graphs_similarity = graph_projections @ graph_projections.T # (batch_size, batch_size)
         texts_similarity = text_projections @ text_projections.T # (batch_size, batch_size)
@@ -76,9 +85,9 @@ class Multimodal_Text_Graph_Model(nn.Module):
         )# (batch_size, batch_size)
         texts_loss = self.cross_entropy(logits, targets, reduction='none')# (batch_size)
         graphs_loss = self.cross_entropy(logits.T, targets.T, reduction='none')# (batch_size)
-        print(f"Graphs loss: {graphs_loss.mean().item()}, Texts loss: {texts_loss.mean().item()}")
+        print(f"Graphs loss: {graphs_loss.mean().item()}, Texts loss: {texts_loss.mean().item()}, Reconstruction loss: {reconstruction_loss.item()}")
         contrastive_loss =  (graphs_loss + texts_loss) / 2.0 # shape: (batch_size)
-        return contrastive_loss.mean()
+        return contrastive_loss.mean() + reconstruction_loss
     
 
     def cross_entropy(self, preds, targets, reduction='none'):
@@ -138,14 +147,15 @@ class Multimodal_Text_Graph_Model(nn.Module):
             
             posible_text_labels = list(set([value[category] for key, value in TRACT_LIST.items()]))
             
-            tokenized_text_labels = tokenizer(posible_text_labels, padding=True, truncation=True, return_tensors="pt")
+            tokenized_text_labels = tokenizer(posible_text_labels, padding=True, truncation=True, return_tensors="pt", max_length=512)
             tokenized_text_labels = {k: v.to(self.device) for k, v in tokenized_text_labels.items()}
             
             text_projections = self.text_encoder(tokenized_text_labels)
-            text_projections = self.text_projection_head(text_projections)
+            # text_projections = self.text_projection_head(text_projections)
             
-            graph_projections = self.graph_encoder(graph_batch)
-            graph_projections = self.graph_projection_head(graph_projections)
+            graph_projections = self.graph_encoder.encode(graph_batch.x, graph_batch.edge_index)
+            graph_projections = global_mean_pool(graph_projections, graph_batch.batch)
+            # graph_projections = self.graph_projection_head(graph_projections)
             
             graph_embeddings_norm = F.normalize(graph_projections, p=2, dim=-1)
             text_embeddings_norm = F.normalize(text_projections, p=2, dim=-1)
