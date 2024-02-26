@@ -2,8 +2,8 @@ __pycache__/
 .git/
 tractoinferno_graphs/
 tractoinferno_preprocessed_mni/
-lightning_logs/*
+.vscode/
 runs/
 tractoinferno/*
 .neptune/
-
+./embeddings_logs/*

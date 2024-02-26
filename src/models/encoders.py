@@ -33,15 +33,14 @@ class Text_Encoder(nn.Module):
         """Performs a forward pass through the model to obtain embeddings."""
 
         model_output = self.model(**tokenized_text)
-        # Perform pooling
+        # # Perform pooling
         sentence_embeddings = self.meanpooling(model_output, tokenized_text['attention_mask'])
-
-        # Normalize embeddings
+        # # Normalize embeddings
         sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
         
         # Devolver el token [CLS]
-        # return output.last_hidden_state[:, 0, :]
         return sentence_embeddings
+        
     
     def meanpooling(self, output: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Applies mean pooling on the model's output embeddings, taking the attention mask into account."""
@@ -79,39 +78,87 @@ class ProjectionHead(nn.Module):
 # ======================================GRAPH ENCODER============================================================
 
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, GATv2Conv, global_mean_pool, BatchNorm
-from torch_geometric.nn.pool import SAGPooling
+from torch_geometric.nn import GCNConv, GATv2Conv, global_mean_pool, BatchNorm, global_add_pool
 from torch_geometric.data import Data
 from torch.nn import ModuleList
 
-class GAT_Encoder(nn.Module):
-    def __init__(self, 
-                 in_channels = CFG.graph_channels, 
-                 hidden_dim = CFG.graph_embedding, 
-                 out_channels = CFG.graph_embedding,
-                 dropout = CFG.dropout
-                 ):
-        
-        super(GAT_Encoder, self).__init__()
-        self.conv1 = GATv2Conv(in_channels, hidden_dim, heads=4, dropout=dropout)
-        self.conv2 = GATv2Conv(hidden_dim * 4, hidden_dim, heads=4, dropout=dropout)
-        self.conv3 = GATv2Conv(hidden_dim * 4, out_channels, heads=4, dropout=dropout)
+class GATv2_Block(nn.Module):
+    def __init__(self, in_channels, out_channels, heads, dropout=0.0):  # Establecer un valor predeterminado para dropout
+        super(GATv2_Block, self).__init__()
+        self.conv = GATv2Conv(in_channels, out_channels, heads=heads, concat=False, dropout=dropout)
+        self.bn = BatchNorm(out_channels)
         self.relu = nn.LeakyReLU()
-        self.bn = BatchNorm(hidden_dim)
-        self.dropout = nn.Dropout(p=dropout)
+        self.dropout = nn.Dropout(p=dropout)  # Siempre inicializar, pero el dropout será 0 si no se desea
+
+    def forward(self, x, edge_index, batch=None):  # Cambiar la firma para aceptar componentes del grafo directamente
+        x = self.conv(x, edge_index)
+        x = self.relu(x)
+        x = self.bn(x)
+        if self.dropout.p > 0:  # Aplicar dropout solo si p > 0
+            x = self.dropout(x)
+        return x
+
+class GATv2_Graph_Encoder(torch.nn.Module):
+    def __init__(self, 
+                 in_channels = CFG.graph_channels,  # Usar valores predeterminados directos para ilustrar
+                 hidden_channels = CFG.graph_hidden_channels, 
+                 out_channels = CFG.graph_embedding, 
+                 heads = CFG.heads, 
+                 dropout = 0.1,
+                 n_hidden_blocks = 2,
+                 trainable = True
+                 ):
+        super(GATv2_Graph_Encoder, self).__init__()
+        self.input_block = GATv2_Block(in_channels, hidden_channels, heads, dropout)
+        self.hidden_blocks = ModuleList([GATv2_Block(hidden_channels, hidden_channels, heads, dropout) for _ in range(n_hidden_blocks - 1)])  # Ajuste para la multiplicación por heads y n-1 bloques ocultos
+        self.output_block = GATv2_Block(hidden_channels, out_channels, 1, 0)
+
+        for param in self.parameters():
+            param.requires_grad = trainable
 
     def forward(self, graph:Data):
         x, edge_index, batch = graph.x, graph.edge_index, graph.batch
-        x = self.conv1(x, edge_index)
-        x = self.relu(x)
-        x = self.dropout(x)
-        x = self.conv2(x, edge_index)
-        x = self.relu(x)
-        x = self.dropout(x)
-        x = self.conv3(x, edge_index)
-        out = global_mean_pool(x, batch)
-        return out
+
+        x = self.input_block(x, edge_index)  # No necesita 'batch' aquí
+        for layer in self.hidden_blocks:
+            x = layer(x, edge_index)  # Pasar 'x' y 'edge_index' directamente
+        x = self.output_block(x, edge_index)
+
+        return global_mean_pool(x, batch)
+        
+
+
+
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class Graph_Conv_Block(nn.Module):
     def __init__(self, in_channels, out_channels, dropout=False):
         super(Graph_Conv_Block, self).__init__()
