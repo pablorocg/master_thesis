@@ -1,10 +1,10 @@
 import torch
-from transformers import AutoModel
+from transformers import AutoModel, AutoModelForMaskedLM
 import torch.nn as nn
 import torch.nn.functional as F
 from config import CFG
 
-class Text_Encoder(nn.Module):
+class TextEncoder(nn.Module):
     """Text Encoder that wraps a pretrained transformer model for embedding extraction."""
 
     def __init__(
@@ -14,8 +14,14 @@ class Text_Encoder(nn.Module):
         """
         Initializes the TextEncoder with a pretrained model.
         """
-        super(Text_Encoder, self).__init__()
-        self.model = AutoModel.from_pretrained(pretrained_model_name_or_path, torch_dtype=torch.float32)
+        super(TextEncoder, self).__init__()
+        if pretrained_model_name_or_path == "distilbert-base-uncased":
+            self.model = AutoModel.from_pretrained(pretrained_model_name_or_path, torch_dtype=torch.float32)
+        elif pretrained_model_name_or_path == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
+            self.model = AutoModelForMaskedLM.from_pretrained("microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext", torch_dtype=torch.float32)
+        elif pretrained_model_name_or_path == "medicalai/ClinicalBERT":
+            self.model = AutoModel.from_pretrained("medicalai/ClinicalBERT")
+
         self.trainable = trainable
         # Freeze the parameters of the pretrained model to prevent updates during training.
         if not self.trainable:
@@ -28,10 +34,15 @@ class Text_Encoder(nn.Module):
     def forward(self, tokenized_text: dict) -> torch.Tensor:
         """Performs a forward pass through the model to obtain embeddings."""
 
-        output = self.model(**tokenized_text)
-        # return self.meanpooling(output, tokenized_text['attention_mask'])
+        model_output = self.model(**tokenized_text)
+        # # Perform pooling
+        sentence_embeddings = self.meanpooling(model_output, tokenized_text['attention_mask'])
+        # # Normalize embeddings
+        sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
+        
         # Devolver el token [CLS]
-        return output.last_hidden_state[:, 0, :]
+        return sentence_embeddings
+        
     
     def meanpooling(self, output: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Applies mean pooling on the model's output embeddings, taking the attention mask into account."""
@@ -41,74 +52,157 @@ class Text_Encoder(nn.Module):
         return torch.sum(embeddings * mask, 1) / torch.clamp(mask.sum(1), min=1e-9)
 
 
-
-class ProjectionHead(nn.Module):
-    def __init__(
-        self,
-        embedding_dim,
-        projection_dim=CFG.projection_dim,
-        dropout=CFG.dropout
-    ):
-        super().__init__()
-        self.projection = nn.Linear(embedding_dim, projection_dim)
+class ProjectionLayer(nn.Module):
+    """
+    Proyección de las embeddings de texto a un espacio de dimensión reducida.
+    """
+    def __init__(self, input_dim, output_dim, dropout=0.1):
+        super(ProjectionLayer, self).__init__()
+        self.fc = nn.Linear(input_dim, output_dim)
         self.gelu = nn.GELU()
-        self.fc = nn.Linear(projection_dim, projection_dim)
-        self.dropout = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm(projection_dim)
-    
+        self.dropout = nn.Dropout(p=dropout)
+        self.layer_norm = nn.LayerNorm(output_dim)
+
     def forward(self, x):
-        projected = self.projection(x)
+        projected = self.fc(x)
         x = self.gelu(projected)
-        x = self.fc(x)
         x = self.dropout(x)
         x = x + projected
         x = self.layer_norm(x)
         return x
+        
+
+class ProjectionHead(nn.Module):
+    """
+    Proyección de las embeddings de texto a un espacio de dimensión reducida.
+    """
+    def __init__(
+        self,
+        embedding_dim,# Salida del modelo de lenguaje (768)
+        projection_dim=CFG.projection_dim, # Dimensión de la proyección (256)
+        num_projection_layers=CFG.num_projection_layers, # Número de capas de proyección (2)
+        dropout=CFG.dropout
+    ):
+        super(ProjectionHead, self).__init__()
+        self.projection = ProjectionLayer(embedding_dim, projection_dim, dropout)
+        self.hidden_layers = nn.ModuleList([ProjectionLayer(projection_dim, projection_dim, dropout) for _ in range(num_projection_layers - 1)])
+
+    def forward(self, x):
+        x = self.projection(x)
+        for layer in self.hidden_layers:
+            x = layer(x)
+        return x
+
+
+class ClassifierHead(nn.Module):
+    """
+    Capa FC con activación softmax para que clasifique la clase.
+    """
+    def __init__(
+        self,
+        projection_dim=CFG.projection_dim, # Dimensión de la proyección (256)
+        n_classes=CFG.n_classes # Número de clases a clasificar (20)
+    ):
+        super(ClassifierHead, self).__init__()
+        self.fc = nn.Linear(projection_dim, n_classes)
+        self.softmax = nn.Softmax(dim=1)
     
+    def forward(self, x):
+        x = self.fc(x)
+        return self.softmax(x)
 
 # ======================================GRAPH ENCODER============================================================
 
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, GATv2Conv, global_mean_pool, BatchNorm
-from torch_geometric.nn.pool import SAGPooling
+from torch_geometric.nn import GCNConv, GATv2Conv, global_mean_pool, BatchNorm, global_add_pool
 from torch_geometric.data import Data
 from torch.nn import ModuleList
 
-class GAT_Encoder(nn.Module):
-    def __init__(self, 
-                 in_channels = CFG.graph_channels, 
-                 hidden_dim = CFG.graph_embedding, 
-                 out_channels = CFG.graph_embedding,
-                 dropout = CFG.dropout
-                 ):
-        
-        super(GAT_Encoder, self).__init__()
-        self.conv1 = GATv2Conv(in_channels, hidden_dim, heads=4, dropout=dropout)
-        self.conv2 = GATv2Conv(hidden_dim * 4, hidden_dim, heads=4, dropout=dropout)
-        self.conv3 = GATv2Conv(hidden_dim * 4, out_channels, heads=4, dropout=dropout)
+class GATv2_Block(nn.Module):
+    def __init__(self, in_channels, out_channels, heads, dropout=0.0):  # Establecer un valor predeterminado para dropout
+        super(GATv2_Block, self).__init__()
+        self.conv = GATv2Conv(in_channels, out_channels, heads=heads, concat=False, dropout=dropout)
+        self.bn = BatchNorm(out_channels)
         self.relu = nn.LeakyReLU()
-        self.bn = BatchNorm(hidden_dim)
-        self.dropout = nn.Dropout(p=dropout)
+        self.dropout = nn.Dropout(p=dropout)  # Siempre inicializar, pero el dropout será 0 si no se desea
+
+    def forward(self, x, edge_index, batch=None):  # Cambiar la firma para aceptar componentes del grafo directamente
+        x = self.conv(x, edge_index)
+        x = self.relu(x)
+        x = self.bn(x)
+        if self.dropout.p > 0:  # Aplicar dropout solo si p > 0
+            x = self.dropout(x)
+        return x
+
+class GATv2_Graph_Encoder(torch.nn.Module):
+    def __init__(self, 
+                 in_channels = CFG.graph_channels,  # Usar valores predeterminados directos para ilustrar
+                 hidden_channels = CFG.graph_hidden_channels, 
+                 out_channels = CFG.graph_embedding, 
+                 heads = CFG.heads, 
+                 dropout = 0.1,
+                 n_hidden_blocks = 2,
+                 trainable = True
+                 ):
+        super(GATv2_Graph_Encoder, self).__init__()
+        self.input_block = GATv2_Block(in_channels, hidden_channels, heads, dropout)
+        self.hidden_blocks = ModuleList([GATv2_Block(hidden_channels, hidden_channels, heads, dropout) for _ in range(n_hidden_blocks - 1)])  # Ajuste para la multiplicación por heads y n-1 bloques ocultos
+        self.output_block = GATv2_Block(hidden_channels, out_channels, 1, 0)
+
+        for param in self.parameters():
+            param.requires_grad = trainable
 
     def forward(self, graph:Data):
         x, edge_index, batch = graph.x, graph.edge_index, graph.batch
-        x = self.conv1(x, edge_index)
-        x = self.relu(x)
-        x = self.dropout(x)
-        x = self.conv2(x, edge_index)
-        x = self.relu(x)
-        x = self.dropout(x)
-        x = self.conv3(x, edge_index)
-        out = global_mean_pool(x, batch)
-        return out
+
+        x = self.input_block(x, edge_index)  # No necesita 'batch' aquí
+        for layer in self.hidden_blocks:
+            x = layer(x, edge_index)  # Pasar 'x' y 'edge_index' directamente
+        x = self.output_block(x, edge_index)
+
+        return global_mean_pool(x, batch)
+        
+
+
+
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class Graph_Conv_Block(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout):
+    def __init__(self, in_channels, out_channels, dropout=False):
         super(Graph_Conv_Block, self).__init__()
         self.conv = GCNConv(in_channels, out_channels)
         self.bn = BatchNorm(out_channels)
         self.relu = nn.LeakyReLU()
-        self.dropout = nn.Dropout(p=dropout)
+        if dropout:
+            self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, edge_index):
         x = self.conv(x, edge_index)
@@ -141,3 +235,30 @@ class GCN_Encoder(nn.Module):
 
         return global_mean_pool(x, batch)
 
+
+
+# ======================================GRAPH AUTOENCODER============================================================
+import torch
+from torch_geometric.nn import GAE, InnerProductDecoder
+
+
+class CustomGCNLayer(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(CustomGCNLayer, self).__init__()
+        self.conv = GCNConv(in_channels, out_channels)
+        self.relu = nn.LeakyReLU()
+        self.bn1 = nn.BatchNorm1d(out_channels)
+        
+
+    def forward(self, graph:Data):
+        x, edge_index, batch = graph.x, graph.edge_index, graph.batch
+        x = self.conv(x, edge_index)
+        x = self.relu(x)
+        x = self.bn1(x)
+        return x
+    
+
+    
+    
+
+    

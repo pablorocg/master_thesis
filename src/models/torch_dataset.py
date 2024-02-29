@@ -63,7 +63,7 @@ class FiberGraphDataset(Dataset):
 # =============================== Clase para el batch de grafos ===============================
 def collate_function(batch):
     """Funcion para el DataLoader"""
-    tokenizer = AutoTokenizer.from_pretrained(CFG.text_encoder_model)#"bert-base-uncased"
+    tokenizer = AutoTokenizer.from_pretrained(CFG.text_encoder_model, model_max_length=128)#"bert-base-uncased"
 
     TRACT_LIST = {
         'AF_L': {'id': 0, 'tract': 'arcuate fasciculus', 'side' : 'left', 'type': 'association'},
