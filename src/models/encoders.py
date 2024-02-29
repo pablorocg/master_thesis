@@ -15,38 +15,21 @@ class TextEncoder(nn.Module):
         Initializes the TextEncoder with a pretrained model.
         """
         super(TextEncoder, self).__init__()
-        if pretrained_model_name_or_path == "distilbert-base-uncased":
-            self.model = AutoModel.from_pretrained(pretrained_model_name_or_path, torch_dtype=torch.float32)
-        elif pretrained_model_name_or_path == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
-            self.model = AutoModelForMaskedLM.from_pretrained("microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext", torch_dtype=torch.float32)
-        elif pretrained_model_name_or_path == "medicalai/ClinicalBERT":
-            self.model = AutoModel.from_pretrained("medicalai/ClinicalBERT")
-
-        self.trainable = trainable
-        # Freeze the parameters of the pretrained model to prevent updates during training.
-        if not self.trainable:
-            for param in self.model.parameters():
-                param.requires_grad = False
-        else:
-            for param in self.model.parameters():
-                param.requires_grad = True
+        self.model = AutoModel.from_pretrained(pretrained_model_name_or_path)
+        self.model.trainable = trainable
+        
 
     def forward(self, tokenized_text: dict) -> torch.Tensor:
         """Performs a forward pass through the model to obtain embeddings."""
-
         model_output = self.model(**tokenized_text)
-        # # Perform pooling
         sentence_embeddings = self.meanpooling(model_output, tokenized_text['attention_mask'])
-        # # Normalize embeddings
-        sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
-        
-        # Devolver el token [CLS]
+        # Normalize embeddings
+        # sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
         return sentence_embeddings
         
     
     def meanpooling(self, output: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Applies mean pooling on the model's output embeddings, taking the attention mask into account."""
-
         embeddings = output[0]  # The first element of model_output contains all token embeddings.
         mask = mask.unsqueeze(-1).expand(embeddings.size()).float()
         return torch.sum(embeddings * mask, 1) / torch.clamp(mask.sum(1), min=1e-9)
@@ -100,8 +83,8 @@ class ClassifierHead(nn.Module):
     """
     def __init__(
         self,
-        projection_dim=CFG.projection_dim, # Dimensión de la proyección (256)
-        n_classes=CFG.n_classes # Número de clases a clasificar (20)
+        projection_dim=CFG.projection_dim, # Dimensión de la proyección (512)
+        n_classes=CFG.n_classes # Número de clases a clasificar (32)
     ):
         super(ClassifierHead, self).__init__()
         self.fc = nn.Linear(projection_dim, n_classes)
@@ -114,85 +97,9 @@ class ClassifierHead(nn.Module):
 # ======================================GRAPH ENCODER============================================================
 
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, GATv2Conv, global_mean_pool, BatchNorm, global_add_pool
+from torch_geometric.nn import GCNConv, global_mean_pool, BatchNorm
 from torch_geometric.data import Data
 from torch.nn import ModuleList
-
-class GATv2_Block(nn.Module):
-    def __init__(self, in_channels, out_channels, heads, dropout=0.0):  # Establecer un valor predeterminado para dropout
-        super(GATv2_Block, self).__init__()
-        self.conv = GATv2Conv(in_channels, out_channels, heads=heads, concat=False, dropout=dropout)
-        self.bn = BatchNorm(out_channels)
-        self.relu = nn.LeakyReLU()
-        self.dropout = nn.Dropout(p=dropout)  # Siempre inicializar, pero el dropout será 0 si no se desea
-
-    def forward(self, x, edge_index, batch=None):  # Cambiar la firma para aceptar componentes del grafo directamente
-        x = self.conv(x, edge_index)
-        x = self.relu(x)
-        x = self.bn(x)
-        if self.dropout.p > 0:  # Aplicar dropout solo si p > 0
-            x = self.dropout(x)
-        return x
-
-class GATv2_Graph_Encoder(torch.nn.Module):
-    def __init__(self, 
-                 in_channels = CFG.graph_channels,  # Usar valores predeterminados directos para ilustrar
-                 hidden_channels = CFG.graph_hidden_channels, 
-                 out_channels = CFG.graph_embedding, 
-                 heads = CFG.heads, 
-                 dropout = 0.1,
-                 n_hidden_blocks = 2,
-                 trainable = True
-                 ):
-        super(GATv2_Graph_Encoder, self).__init__()
-        self.input_block = GATv2_Block(in_channels, hidden_channels, heads, dropout)
-        self.hidden_blocks = ModuleList([GATv2_Block(hidden_channels, hidden_channels, heads, dropout) for _ in range(n_hidden_blocks - 1)])  # Ajuste para la multiplicación por heads y n-1 bloques ocultos
-        self.output_block = GATv2_Block(hidden_channels, out_channels, 1, 0)
-
-        for param in self.parameters():
-            param.requires_grad = trainable
-
-    def forward(self, graph:Data):
-        x, edge_index, batch = graph.x, graph.edge_index, graph.batch
-
-        x = self.input_block(x, edge_index)  # No necesita 'batch' aquí
-        for layer in self.hidden_blocks:
-            x = layer(x, edge_index)  # Pasar 'x' y 'edge_index' directamente
-        x = self.output_block(x, edge_index)
-
-        return global_mean_pool(x, batch)
-        
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 class Graph_Conv_Block(nn.Module):
@@ -208,7 +115,8 @@ class Graph_Conv_Block(nn.Module):
         x = self.conv(x, edge_index)
         x = self.relu(x)
         x = self.bn(x)
-        x = self.dropout(x)
+        if self.dropout:
+            x = self.dropout(x)
         return x
     
 class GCN_Encoder(nn.Module):
@@ -220,42 +128,111 @@ class GCN_Encoder(nn.Module):
                  ):
         
         super(GCN_Encoder, self).__init__()
-        self.first_block = Graph_Conv_Block(in_channels, hidden_dim, dropout)
-        self.intermediate_layers = ModuleList([Graph_Conv_Block(hidden_dim, hidden_dim, dropout) for _ in range(5)])
-        self.last_block = Graph_Conv_Block(hidden_dim, out_channels, dropout)
+        self.input_block = Graph_Conv_Block(in_channels, hidden_dim, dropout)
+        self.hidden_block = Graph_Conv_Block(hidden_dim, hidden_dim, dropout)
+        self.output_block = Graph_Conv_Block(hidden_dim, out_channels, dropout)
         
 
-    def forward(self, graph:Data):
-        x, edge_index, batch = graph.x, graph.edge_index, graph.batch
-
-        x = self.first_block(x, edge_index)
-        for layer in self.intermediate_layers:
-            x = layer(x, edge_index)
-        x = self.last_block(x, edge_index)
-
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+        x = self.input_block(x, edge_index)
+        x = self.hidden_block(x, edge_index)
+        x = self.output_block(x, edge_index)
         return global_mean_pool(x, batch)
 
 
 
-# ======================================GRAPH AUTOENCODER============================================================
-import torch
-from torch_geometric.nn import GAE, InnerProductDecoder
 
 
-class CustomGCNLayer(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(CustomGCNLayer, self).__init__()
-        self.conv = GCNConv(in_channels, out_channels)
-        self.relu = nn.LeakyReLU()
-        self.bn1 = nn.BatchNorm1d(out_channels)
+
+
+
+
+
+
+
+
+
+
+# class GATv2_Block(nn.Module):
+#     def __init__(self, in_channels, out_channels, heads, dropout=0.0):  # Establecer un valor predeterminado para dropout
+#         super(GATv2_Block, self).__init__()
+#         self.conv = GATv2Conv(in_channels, out_channels, heads=heads, concat=False, dropout=dropout)
+#         self.bn = BatchNorm(out_channels)
+#         self.relu = nn.LeakyReLU()
+#         self.dropout = nn.Dropout(p=dropout)  # Siempre inicializar, pero el dropout será 0 si no se desea
+
+#     def forward(self, x, edge_index, batch=None):  # Cambiar la firma para aceptar componentes del grafo directamente
+#         x = self.conv(x, edge_index)
+#         x = self.relu(x)
+#         x = self.bn(x)
+#         if self.dropout.p > 0:  # Aplicar dropout solo si p > 0
+#             x = self.dropout(x)
+#         return x
+
+# class GATv2_Graph_Encoder(torch.nn.Module):
+#     def __init__(self, 
+#                  in_channels = CFG.graph_channels,  # Usar valores predeterminados directos para ilustrar
+#                  hidden_channels = CFG.graph_hidden_channels, 
+#                  out_channels = CFG.graph_embedding, 
+#                  heads = CFG.heads, 
+#                  dropout = 0.1,
+#                  n_hidden_blocks = 2,
+#                  trainable = True
+#                  ):
+#         super(GATv2_Graph_Encoder, self).__init__()
+#         self.input_block = GATv2_Block(in_channels, hidden_channels, heads, dropout)
+#         self.hidden_blocks = ModuleList([GATv2_Block(hidden_channels, hidden_channels, heads, dropout) for _ in range(n_hidden_blocks - 1)])  # Ajuste para la multiplicación por heads y n-1 bloques ocultos
+#         self.output_block = GATv2_Block(hidden_channels, out_channels, 1, 0)
+
+#         for param in self.parameters():
+#             param.requires_grad = trainable
+
+#     def forward(self, graph:Data):
+#         x, edge_index, batch = graph.x, graph.edge_index, graph.batch
+
+#         x = self.input_block(x, edge_index)  # No necesita 'batch' aquí
+#         for layer in self.hidden_blocks:
+#             x = layer(x, edge_index)  # Pasar 'x' y 'edge_index' directamente
+#         x = self.output_block(x, edge_index)
+
+#         return global_mean_pool(x, batch)
         
 
-    def forward(self, graph:Data):
-        x, edge_index, batch = graph.x, graph.edge_index, graph.batch
-        x = self.conv(x, edge_index)
-        x = self.relu(x)
-        x = self.bn1(x)
-        return x
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
 
     

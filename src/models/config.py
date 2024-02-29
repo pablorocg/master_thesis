@@ -12,13 +12,14 @@ class CFG:
     weight_decay = 1e-3
     patience = 1
     factor = 0.8
+    pos_neg_ratio = 1/3
     
     
     # Configuración del modelo de grafo
     graph_model_name = "GraphConvolutionalNetwork"#"GraphAttentionNetwork"
     graph_channels = 3
     graph_hidden_channels = 128
-    graph_embedding = 1024
+    graph_embedding = 512
     heads = 4
     dropout = 0.2
     n_hidden_blocks = 5
@@ -35,7 +36,7 @@ class CFG:
 
     # for projection head; used for both image and text encoders
     num_projection_layers = 1
-    projection_dim = 256 
+    projection_dim = 512 
     dropout = 0.1
 
     n_classes = 32
