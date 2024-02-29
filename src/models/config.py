@@ -4,7 +4,7 @@ from tabulate import tabulate
 class CFG:
     # Configuración general
     debug = True
-    epochs = 4
+    epochs = 1
     batch_size = 128
     num_workers = 4
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,8 +35,10 @@ class CFG:
 
     # for projection head; used for both image and text encoders
     num_projection_layers = 1
-    projection_dim = 768 
+    projection_dim = 256 
     dropout = 0.1
+
+    n_classes = 32
 
     # Load model directly
 

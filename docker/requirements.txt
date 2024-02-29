@@ -6,4 +6,8 @@ ipywidgets
 ipykernel
 matplotlib
 numpy
+transformers
+tabulate
+neptune
+torchmetrics
 

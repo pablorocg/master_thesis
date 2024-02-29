@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from config import CFG
 
-class Text_Encoder(nn.Module):
+class TextEncoder(nn.Module):
     """Text Encoder that wraps a pretrained transformer model for embedding extraction."""
 
     def __init__(
@@ -14,7 +14,7 @@ class Text_Encoder(nn.Module):
         """
         Initializes the TextEncoder with a pretrained model.
         """
-        super(Text_Encoder, self).__init__()
+        super(TextEncoder, self).__init__()
         if pretrained_model_name_or_path == "distilbert-base-uncased":
             self.model = AutoModel.from_pretrained(pretrained_model_name_or_path, torch_dtype=torch.float32)
         elif pretrained_model_name_or_path == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
@@ -52,30 +52,64 @@ class Text_Encoder(nn.Module):
         return torch.sum(embeddings * mask, 1) / torch.clamp(mask.sum(1), min=1e-9)
 
 
-
-class ProjectionHead(nn.Module):
-    def __init__(
-        self,
-        embedding_dim,
-        projection_dim=CFG.projection_dim,
-        dropout=CFG.dropout
-    ):
-        super().__init__()
-        self.projection = nn.Linear(embedding_dim, projection_dim)
+class ProjectionLayer(nn.Module):
+    """
+    Proyección de las embeddings de texto a un espacio de dimensión reducida.
+    """
+    def __init__(self, input_dim, output_dim, dropout=0.1):
+        super(ProjectionLayer, self).__init__()
+        self.fc = nn.Linear(input_dim, output_dim)
         self.gelu = nn.GELU()
-        self.fc = nn.Linear(projection_dim, projection_dim)
-        self.dropout = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm(projection_dim)
-    
+        self.dropout = nn.Dropout(p=dropout)
+        self.layer_norm = nn.LayerNorm(output_dim)
+
     def forward(self, x):
-        projected = self.projection(x)
+        projected = self.fc(x)
         x = self.gelu(projected)
-        x = self.fc(x)
         x = self.dropout(x)
         x = x + projected
         x = self.layer_norm(x)
         return x
+        
+
+class ProjectionHead(nn.Module):
+    """
+    Proyección de las embeddings de texto a un espacio de dimensión reducida.
+    """
+    def __init__(
+        self,
+        embedding_dim,# Salida del modelo de lenguaje (768)
+        projection_dim=CFG.projection_dim, # Dimensión de la proyección (256)
+        num_projection_layers=CFG.num_projection_layers, # Número de capas de proyección (2)
+        dropout=CFG.dropout
+    ):
+        super(ProjectionHead, self).__init__()
+        self.projection = ProjectionLayer(embedding_dim, projection_dim, dropout)
+        self.hidden_layers = nn.ModuleList([ProjectionLayer(projection_dim, projection_dim, dropout) for _ in range(num_projection_layers - 1)])
+
+    def forward(self, x):
+        x = self.projection(x)
+        for layer in self.hidden_layers:
+            x = layer(x)
+        return x
+
+
+class ClassifierHead(nn.Module):
+    """
+    Capa FC con activación softmax para que clasifique la clase.
+    """
+    def __init__(
+        self,
+        projection_dim=CFG.projection_dim, # Dimensión de la proyección (256)
+        n_classes=CFG.n_classes # Número de clases a clasificar (20)
+    ):
+        super(ClassifierHead, self).__init__()
+        self.fc = nn.Linear(projection_dim, n_classes)
+        self.softmax = nn.Softmax(dim=1)
     
+    def forward(self, x):
+        x = self.fc(x)
+        return self.softmax(x)
 
 # ======================================GRAPH ENCODER============================================================
 
