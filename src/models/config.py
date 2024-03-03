@@ -5,7 +5,7 @@ class CFG:
     # Configuración general
     debug = True
     epochs = 1
-    batch_size = 128
+    batch_size = 64
     num_workers = 4
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     lr = 1e-2
@@ -18,8 +18,9 @@ class CFG:
     # Configuración del modelo de grafo
     graph_model_name = "GraphConvolutionalNetwork"#"GraphAttentionNetwork"
     graph_channels = 3
+    n_graph_hidden_blocks = 3
     graph_hidden_channels = 128
-    graph_embedding = 512
+    graph_embedding = 768
     heads = 4
     dropout = 0.2
     n_hidden_blocks = 5
@@ -36,7 +37,7 @@ class CFG:
 
     # for projection head; used for both image and text encoders
     num_projection_layers = 1
-    projection_dim = 512 
+    projection_dim = 768 
     dropout = 0.1
 
     n_classes = 32

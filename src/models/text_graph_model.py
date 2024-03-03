@@ -30,7 +30,7 @@ class Multimodal_Text_Graph_Model(nn.Module):
 
 
         self.text_encoder = TextEncoder(text_encoder_model) #(batch_size, text_embedding)
-        self.text_projection_head = ProjectionHead(text_embedding, projection_dim) #(batch_size, projection_dim)
+        self.text_projection_head = ProjectionHead(text_embedding, projection_dim, num_projection_layers=4) #(batch_size, projection_dim)
         self.text_embedding_classifier = ClassifierHead(projection_dim, CFG.n_classes)
         
         self.device = device
@@ -56,12 +56,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CustomLoss(nn.Module):
+class CategoricalContrastiveLoss(nn.Module):
     def __init__(self, theta):
-        super(CustomLoss, self).__init__()
+        super(CategoricalContrastiveLoss, self).__init__()
         self.theta = theta
         self.margin = 1  # margen
-        # Define la función de pérdida para la clasificación (por ejemplo, CrossEntropyLoss)
         self.classification_loss = nn.CrossEntropyLoss()
 
     def forward(self, graph_emb, text_emb, graph_label, text_label, graph_pred_label, text_pred_label, y):
@@ -70,17 +69,19 @@ class CustomLoss(nn.Module):
 
         loss_similar = (1 - y) * torch.pow(dw, 2)# Pérdida para pares similares: Ls(Dw) = Dw^2
         loss_dissimilar = y * torch.pow(F.relu(self.margin - dw), 2)# Pérdida para pares disímiles: Ld(Dw) = max(0, m - Dw)^2
-
         contrastive_loss = loss_similar + loss_dissimilar
         
-        # Calcula la pérdida de clasificación para cada imagen
         graph_classification_loss = self.classification_loss(graph_pred_label, graph_label)
         text_classification_loss = self.classification_loss(text_pred_label, text_label)
         
-        # Combina las pérdidas con el factor theta
         loss = contrastive_loss + self.theta * (graph_classification_loss + text_classification_loss)
-        
-        # Devuelve la pérdida total (suma de las pérdidas de disimilitud y clasificación)
+
+        if True:#self.training
+            run['train/contrastive_loss'].log(contrastive_loss.mean().item())
+            run['train/graph_classification_loss'].log(graph_classification_loss.mean().item())
+            run['train/text_classification_loss'].log(text_classification_loss.mean().item())
+            run['train/loss'].log(loss.mean().item())
+
         return loss.mean()
 
 
@@ -242,26 +243,37 @@ if __name__ == "__main__":
     model = Multimodal_Text_Graph_Model()
 
     # INSTANCIAR EL OPTIMIZADOR Y EL SCHEDULER
-    optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=params['lr'], weight_decay=1e-3)
     # scheduler = ReduceLROnPlateau(optimizer, patience=1500, factor=0.95, verbose=True)
 
     # INSTANCIAR LA FUNCIÓN DE PÉRDIDA
-    loss = CustomLoss(theta=0.35)
-    loss.to(model.device)
+    criterion = CategoricalContrastiveLoss(theta=0.35)
+    criterion.to(model.device)
+
+    # DEFINIR LAS MÉTRICAS
+    auroc_graphs = torchmetrics.classification.MulticlassAUROC(num_classes=CFG.n_classes, average="macro").to(model.device)
+    auroc_texts = torchmetrics.classification.MulticlassAUROC(num_classes=CFG.n_classes, average="macro").to(model.device)
+
+    accuracy_graphs = torchmetrics.classification.MulticlassAccuracy(num_classes=CFG.n_classes, average="macro").to(model.device)
+    accuracy_texts = torchmetrics.classification.MulticlassAccuracy(num_classes=CFG.n_classes, average="macro").to(model.device)
+
+    f1_graphs = torchmetrics.classification.MulticlassF1Score(num_classes=CFG.n_classes, average="macro").to(model.device)
+    f1_texts = torchmetrics.classification.MulticlassF1Score(num_classes=CFG.n_classes, average="macro").to(model.device)
+
+
+
+    # best loss 
+    best_loss = np.inf
 
 
     # BUCLE DE ENTRENAMIENTO
     for epoch in range(params["epochs"]):
-    
         for idx_suj, subject in enumerate(dataset):
-            
-
-            
-
             dataloader = DataLoader(subject, batch_size=params['batch_size'], shuffle=True, collate_fn=collate_function_v2, num_workers=params['num_workers'])
             for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumerate(dataloader):
                 
                 model.train()
+                
                 # send data to device
                 graph_data = graph_data.to(model.device)
                 text_data = {k: v.to(model.device) for k, v in text_data.items()}
@@ -275,32 +287,57 @@ if __name__ == "__main__":
 
                 # forward pass
                 g_proj, t_proj, g_pred_lab, t_pred_lab = model(graph_data, text_data)
+                loss = criterion(g_proj, t_proj, graph_label, text_label, g_pred_lab, t_pred_lab, type_of_pair)
 
-                loss_value = loss(g_proj, t_proj, graph_label, text_label, g_pred_lab, t_pred_lab, type_of_pair)
-
+                # Calcular el accuracy y el f1
+                g_pred = torch.argmax(g_pred_lab, dim=1)
+                # Calculate metrics for graph data
+                batch_graph_accuracy = accuracy_graphs(g_pred, graph_label)
+                batch_graph_f1 = f1_graphs(g_pred, graph_label)
+                batch_graph_aucroc = auroc_graphs(g_pred_lab, graph_label)
                 
+
+                t_pred = torch.argmax(t_pred_lab, dim=1)
+                # Calculate metrics for text data
+                batch_text_accuracy = accuracy_texts(t_pred, text_label)
+                batch_text_f1 = f1_texts(t_pred, text_label)
+                batch_text_aucroc = auroc_texts(t_pred_lab, text_label)
+
+                if params["log"]:
+                    run['train/batch/graph_accuracy'].log(batch_graph_accuracy.item())
+                    run['train/batch/graph_f1'].log(batch_graph_f1.item())
+                    run['train/batch/graph_aucroc'].log(batch_graph_aucroc.item())
+
+                    run['train/batch/text_accuracy'].log(batch_text_accuracy.item())
+                    run['train/batch/text_f1'].log(batch_text_f1.item())
+                    run['train/batch/text_aucroc'].log(batch_text_aucroc.item())
+
+                    run['train/batch/loss'].log(loss.item())
                 
                 # Actualizar la barra de progreso con el batch loss
-                print(f'\rBatch {i+1} - Loss: {loss_value.item()}')
+                print(f'\rBatch {i+1} - Loss: {loss.item()} - G. Acc: {batch_graph_accuracy.item()} - T. Acc: {batch_text_accuracy.item()} - G F1: {batch_graph_f1.item()} - T F1: {batch_text_f1.item()} - G AUCROC: {batch_graph_aucroc.item()} - T AUCROC: {batch_text_aucroc.item()}', end="")
 
                 # backward pass
-                loss_value.backward()
+                loss.backward()
                 
                 # actualizar los parámetros
                 optimizer.step()
                 # scheduler.step(loss)
 
-                if params["log"]:
-                    run['train/batch/loss'].log(loss_value.item())# Log the loss to Neptune
-            
-            
-            
-            if params["log"]:
-                run['train/subject/loss'].log(loss_value.item())
+                # guardar el loss 
 
+            # Cuando termina el sujeto gurdar los pesos del modelo 
+            # if loss.item() < best_loss:
+            #     best_loss = loss.item()
+            #     torch.save(model.state_dict(), f"model_{epoch}_suj{idx_suj}_loss_{best_loss}.pt")
+                
+
+
+
+                
             
-            # Actualizar la barra de progreso con el loss del sujeto
-            print(f'\rSubject {idx_suj+1} - Loss: {loss_value.item()}')
+            
+            
 
         
         

@@ -129,14 +129,15 @@ class GCN_Encoder(nn.Module):
         
         super(GCN_Encoder, self).__init__()
         self.input_block = Graph_Conv_Block(in_channels, hidden_dim, dropout)
-        self.hidden_block = Graph_Conv_Block(hidden_dim, hidden_dim, dropout)
+        self.hidden_blocks = nn.ModuleList([Graph_Conv_Block(hidden_dim, hidden_dim, dropout) for _ in range(CFG.n_graph_hidden_blocks - 1)])
         self.output_block = Graph_Conv_Block(hidden_dim, out_channels, dropout)
         
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
         x = self.input_block(x, edge_index)
-        x = self.hidden_block(x, edge_index)
+        for layer in self.hidden_blocks:
+            x = layer(x, edge_index)
         x = self.output_block(x, edge_index)
         return global_mean_pool(x, batch)
 
