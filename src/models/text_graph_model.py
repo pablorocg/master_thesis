@@ -30,7 +30,7 @@ class Multimodal_Text_Graph_Model(nn.Module):
 
 
         self.text_encoder = TextEncoder(text_encoder_model) #(batch_size, text_embedding)
-        self.text_projection_head = ProjectionHead(text_embedding, projection_dim, num_projection_layers=4) #(batch_size, projection_dim)
+        self.text_projection_head = ProjectionHead(text_embedding, projection_dim) #(batch_size, projection_dim)
         self.text_embedding_classifier = ClassifierHead(projection_dim, CFG.n_classes)
         
         self.device = device
@@ -51,21 +51,66 @@ class Multimodal_Text_Graph_Model(nn.Module):
 
         return graph_projections, text_projections, graph_predicted_labels, text_predicted_labels
     
+def get_streamline_weights():
+    count_fibras = {0: 746528,
+                    1: 329896,
+                    2: 2793503,
+                    3: 5128144,
+                    4: 2059468,
+                    5: 2765610,
+                    6: 3367322,
+                    7: 302274,
+                    8: 236299,
+                    9: 1263593,
+                    10: 988040,
+                    11: 659802,
+                    12: 716805,
+                    13: 569,
+                    14: 254,
+                    15: 696934,
+                    16: 730783,
+                    17: 1160519,
+                    18: 979649,
+                    19: 978293,
+                    20: 371638,
+                    21: 456242,
+                    22: 480974,
+                    23: 304006,
+                    24: 540280,
+                    25: 507532,
+                    26: 1308236,
+                    27: 1384632,
+                    28: 230113,
+                    29: 558167,
+                    30: 165851,
+                    31: 259382}
+    weights = []
+    for tipo, count in count_fibras.items():
+        weights.append(1/count)
+    weights = torch.tensor(weights)
+    weights = weights/weights.sum()
+    return weights
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 class CategoricalContrastiveLoss(nn.Module):
-    def __init__(self, theta):
+    def __init__(self, theta=0.5, margin = 1.0, dw = 'euclidean', weights = True):
         super(CategoricalContrastiveLoss, self).__init__()
         self.theta = theta
-        self.margin = 1  # margen
-        self.classification_loss = nn.CrossEntropyLoss()
+        self.margin = margin  # margen
+        self.classification_loss = nn.CrossEntropyLoss(weight=get_streamline_weights() if weights else None)
+        self.dw = dw
 
     def forward(self, graph_emb, text_emb, graph_label, text_label, graph_pred_label, text_pred_label, y):
         # Calcula la pérdida de disimilitud como la distancia euclídea
-        dw = torch.norm(graph_emb - text_emb, p=2, dim=1)
+        if self.dw == 'euclidean':
+            dw = torch.norm(graph_emb - text_emb, p=2, dim=1)
+        elif self.dw == 'cosine':
+            dw = 1 - F.cosine_similarity(graph_emb, text_emb, dim=1)
+
+        # dw = torch.norm(graph_emb - text_emb, p=2, dim=1)
 
         loss_similar = (1 - y) * torch.pow(dw, 2)# Pérdida para pares similares: Ls(Dw) = Dw^2
         loss_dissimilar = y * torch.pow(F.relu(self.margin - dw), 2)# Pérdida para pares disímiles: Ld(Dw) = max(0, m - Dw)^2
@@ -247,7 +292,7 @@ if __name__ == "__main__":
     # scheduler = ReduceLROnPlateau(optimizer, patience=1500, factor=0.95, verbose=True)
 
     # INSTANCIAR LA FUNCIÓN DE PÉRDIDA
-    criterion = CategoricalContrastiveLoss(theta=0.35)
+    criterion = CategoricalContrastiveLoss(theta=0.5, margin=0.8, dw='cosine')
     criterion.to(model.device)
 
     # DEFINIR LAS MÉTRICAS

@@ -8,11 +8,11 @@ class CFG:
     batch_size = 64
     num_workers = 4
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    lr = 1e-2
+    lr = 1e-3
     weight_decay = 1e-3
     patience = 1
     factor = 0.8
-    pos_neg_ratio = 1/3
+    pos_neg_ratio = 1/5
     
     
     # Configuración del modelo de grafo
@@ -20,7 +20,7 @@ class CFG:
     graph_channels = 3
     n_graph_hidden_blocks = 3
     graph_hidden_channels = 128
-    graph_embedding = 768
+    graph_embedding = 128
     heads = 4
     dropout = 0.2
     n_hidden_blocks = 5
@@ -37,7 +37,7 @@ class CFG:
 
     # for projection head; used for both image and text encoders
     num_projection_layers = 1
-    projection_dim = 768 
+    projection_dim = 128 
     dropout = 0.1
 
     n_classes = 32

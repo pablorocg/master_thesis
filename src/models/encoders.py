@@ -16,16 +16,28 @@ class TextEncoder(nn.Module):
         """
         super(TextEncoder, self).__init__()
         self.model = AutoModel.from_pretrained(pretrained_model_name_or_path)
-        self.model.trainable = trainable
+        
+        # Freeze the model's parameters if not trainable
+        if not trainable:
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+        # we are using the CLS token hidden representation as the sentence's embedding
+        self.target_token_idx = 0
         
 
     def forward(self, tokenized_text: dict) -> torch.Tensor:
         """Performs a forward pass through the model to obtain embeddings."""
-        model_output = self.model(**tokenized_text)
-        sentence_embeddings = self.meanpooling(model_output, tokenized_text['attention_mask'])
-        # Normalize embeddings
-        # sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
-        return sentence_embeddings
+
+    
+        input_ids, attention_mask = tokenized_text['input_ids'], tokenized_text['attention_mask']
+        output = self.model(input_ids=input_ids, attention_mask=attention_mask)
+        return output.last_hidden_state[:, self.target_token_idx, :]
+        # model_output = self.model(**tokenized_text)
+        # sentence_embeddings = self.meanpooling(model_output, tokenized_text['attention_mask'])
+        # # Normalize embeddings
+        # # sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
+        # return sentence_embeddings
         
     
     def meanpooling(self, output: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -34,25 +46,6 @@ class TextEncoder(nn.Module):
         mask = mask.unsqueeze(-1).expand(embeddings.size()).float()
         return torch.sum(embeddings * mask, 1) / torch.clamp(mask.sum(1), min=1e-9)
 
-
-class ProjectionLayer(nn.Module):
-    """
-    Proyección de las embeddings de texto a un espacio de dimensión reducida.
-    """
-    def __init__(self, input_dim, output_dim, dropout=0.1):
-        super(ProjectionLayer, self).__init__()
-        self.fc = nn.Linear(input_dim, output_dim)
-        self.gelu = nn.GELU()
-        self.dropout = nn.Dropout(p=dropout)
-        self.layer_norm = nn.LayerNorm(output_dim)
-
-    def forward(self, x):
-        projected = self.fc(x)
-        x = self.gelu(projected)
-        x = self.dropout(x)
-        x = x + projected
-        x = self.layer_norm(x)
-        return x
         
 
 class ProjectionHead(nn.Module):
@@ -63,17 +56,22 @@ class ProjectionHead(nn.Module):
         self,
         embedding_dim,# Salida del modelo de lenguaje (768)
         projection_dim=CFG.projection_dim, # Dimensión de la proyección (256)
-        num_projection_layers=CFG.num_projection_layers, # Número de capas de proyección (2)
         dropout=CFG.dropout
     ):
         super(ProjectionHead, self).__init__()
-        self.projection = ProjectionLayer(embedding_dim, projection_dim, dropout)
-        self.hidden_layers = nn.ModuleList([ProjectionLayer(projection_dim, projection_dim, dropout) for _ in range(num_projection_layers - 1)])
+        self.projection = nn.Linear(embedding_dim, projection_dim)
+        self.gelu = nn.GELU()
+        self.fc = nn.Linear(projection_dim, projection_dim)
+        self.dropout = nn.Dropout(dropout)
+        self.layer_norm = nn.LayerNorm(projection_dim)
 
     def forward(self, x):
-        x = self.projection(x)
-        for layer in self.hidden_layers:
-            x = layer(x)
+        projected = self.projection(x)
+        x = self.gelu(projected)
+        x = self.fc(x)
+        x = self.dropout(x)
+        x = x + projected
+        x = self.layer_norm(x)
         return x
 
 
@@ -88,7 +86,8 @@ class ClassifierHead(nn.Module):
     ):
         super(ClassifierHead, self).__init__()
         self.fc = nn.Linear(projection_dim, n_classes)
-        self.softmax = nn.Softmax(dim=1)
+        # self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
     
     def forward(self, x):
         x = self.fc(x)
