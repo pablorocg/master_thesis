@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoModel, AutoModelForMaskedLM
+from transformers import AutoModel
 import torch.nn as nn
 import torch.nn.functional as F
 from config import CFG
@@ -7,9 +7,8 @@ from config import CFG
 class TextEncoder(nn.Module):
     """Text Encoder that wraps a pretrained transformer model for embedding extraction."""
 
-    def __init__(
-                self, 
-                pretrained_model_name_or_path: str = CFG.text_encoder_model,
+    def __init__(self, 
+                pretrained_model_name_or_path = "emilyalsentzer/Bio_ClinicalBERT",
                 trainable: bool = False) -> None:
         """
         Initializes the TextEncoder with a pretrained model.
@@ -55,8 +54,8 @@ class ProjectionHead(nn.Module):
     def __init__(
         self,
         embedding_dim,# Salida del modelo de lenguaje (768)
-        projection_dim=CFG.projection_dim, # Dimensión de la proyección (256)
-        dropout=CFG.dropout
+        projection_dim=CFG.projection_head_output_dim, # Dimensión de la proyección (256)
+        dropout=CFG.projection_head_dropout
     ):
         super(ProjectionHead, self).__init__()
         self.projection = nn.Linear(embedding_dim, projection_dim)
@@ -81,7 +80,7 @@ class ClassifierHead(nn.Module):
     """
     def __init__(
         self,
-        projection_dim=CFG.projection_dim, # Dimensión de la proyección (512)
+        projection_dim=CFG.projection_head_output_dim, # Dimensión de la proyección (512)
         n_classes=CFG.n_classes # Número de clases a clasificar (32)
     ):
         super(ClassifierHead, self).__init__()
@@ -96,7 +95,7 @@ class ClassifierHead(nn.Module):
 # ======================================GRAPH ENCODER============================================================
 
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, global_mean_pool, BatchNorm, GATv2Conv
+from torch_geometric.nn import GCNConv, global_mean_pool, BatchNorm
 from torch_geometric.data import Data
 from torch.nn import ModuleList
 
@@ -120,15 +119,16 @@ class Graph_Conv_Block(nn.Module):
     
 class GCN_Encoder(nn.Module):
     def __init__(self, 
-                 in_channels = CFG.graph_channels, 
-                 hidden_dim = CFG.graph_embedding, 
-                 out_channels = CFG.graph_embedding,
-                 dropout = CFG.dropout
+                 in_channels = CFG.graph_encoder_input_channels, 
+                 hidden_dim = CFG.graph_encoder_hidden_channels, 
+                 out_channels = CFG.graph_encoder_graph_embedding ,
+                 dropout = CFG.graph_encoder_dropout,
+                 n_hidden_blocks = CFG.graph_encoder_n_hidden_blocks
                  ):
         
         super(GCN_Encoder, self).__init__()
         self.input_block = Graph_Conv_Block(in_channels, hidden_dim, dropout)
-        self.hidden_blocks = nn.ModuleList([Graph_Conv_Block(hidden_dim, hidden_dim, dropout) for _ in range(CFG.n_graph_hidden_blocks - 1)])
+        self.hidden_blocks = nn.ModuleList([Graph_Conv_Block(hidden_dim, hidden_dim, dropout) for _ in range(n_hidden_blocks - 1)])
         self.output_block = Graph_Conv_Block(hidden_dim, out_channels, dropout)
         
 
@@ -142,138 +142,43 @@ class GCN_Encoder(nn.Module):
 
 
 
-class GATv2_Block(nn.Module):
-    def __init__(self, in_channels, out_channels, heads, dropout=0.0):  # Establecer un valor predeterminado para dropout
-        super(GATv2_Block, self).__init__()
-        self.conv = GATv2Conv(in_channels, out_channels, heads=heads, concat=False, dropout=dropout)
-        self.relu = nn.GELU()
-        self.bn = BatchNorm(out_channels)
-        self.dropout = nn.Dropout(p=dropout)  # Siempre inicializar, pero el dropout será 0 si no se desea
-
-    def forward(self, x, edge_index):  # Cambiar la firma para aceptar componentes del grafo directamente
-        x = self.conv(x, edge_index)
-        x = self.relu(x)
-        x = self.bn(x)
-        x = self.dropout(x)
-        return x
-    
-class GATv2_Encoder(nn.Module):
-    def __init__(self, 
-                 in_channels,  # Valores configurables
-                 hidden_channels, 
-                 out_channels, 
-                 heads, 
-                 dropout=0.1,
-                 n_hidden_blocks=1):
-        
-        super(GATv2_Encoder, self).__init__()
-        # Asegúrate de que los canales de salida de la capa anterior coincidan con los canales de entrada de la siguiente
-        self.input_block = GATv2_Block(in_channels, hidden_channels, heads, dropout)
-        # No es necesario multiplicar por heads ya que concat=False en GATv2Conv reduce la dimensión
-        self.hidden_blocks = ModuleList([GATv2_Block(hidden_channels, hidden_channels, heads, dropout) for _ in range(n_hidden_blocks)])
-        self.output_block = GATv2_Block(hidden_channels, out_channels, 1, dropout)
-
-    def forward(self, graph:Data):
-        x, edge_index, batch = graph.x, graph.edge_index, graph.batch
-        x = self.input_block(x, edge_index)
-        for layer in self.hidden_blocks:
-            x = layer(x, edge_index)
-        x = self.output_block(x, edge_index)
-        return global_mean_pool(x, batch)
-
-       
-
-
-
-
-
-
-
-
-
-
 # class GATv2_Block(nn.Module):
 #     def __init__(self, in_channels, out_channels, heads, dropout=0.0):  # Establecer un valor predeterminado para dropout
 #         super(GATv2_Block, self).__init__()
 #         self.conv = GATv2Conv(in_channels, out_channels, heads=heads, concat=False, dropout=dropout)
+#         self.relu = nn.GELU()
 #         self.bn = BatchNorm(out_channels)
-#         self.relu = nn.LeakyReLU()
 #         self.dropout = nn.Dropout(p=dropout)  # Siempre inicializar, pero el dropout será 0 si no se desea
 
-#     def forward(self, x, edge_index, batch=None):  # Cambiar la firma para aceptar componentes del grafo directamente
+#     def forward(self, x, edge_index):  # Cambiar la firma para aceptar componentes del grafo directamente
 #         x = self.conv(x, edge_index)
 #         x = self.relu(x)
 #         x = self.bn(x)
-#         if self.dropout.p > 0:  # Aplicar dropout solo si p > 0
-#             x = self.dropout(x)
+#         x = self.dropout(x)
 #         return x
-
-# class GATv2_Graph_Encoder(torch.nn.Module):
+    
+# class GATv2_Encoder(nn.Module):
 #     def __init__(self, 
-#                  in_channels = CFG.graph_channels,  # Usar valores predeterminados directos para ilustrar
-#                  hidden_channels = CFG.graph_hidden_channels, 
-#                  out_channels = CFG.graph_embedding, 
-#                  heads = CFG.heads, 
-#                  dropout = 0.1,
-#                  n_hidden_blocks = 2,
-#                  trainable = True
-#                  ):
-#         super(GATv2_Graph_Encoder, self).__init__()
+#                  in_channels,  # Valores configurables
+#                  hidden_channels, 
+#                  out_channels, 
+#                  heads, 
+#                  dropout=0.1,
+#                  n_hidden_blocks=1):
+        
+#         super(GATv2_Encoder, self).__init__()
+#         # Asegúrate de que los canales de salida de la capa anterior coincidan con los canales de entrada de la siguiente
 #         self.input_block = GATv2_Block(in_channels, hidden_channels, heads, dropout)
-#         self.hidden_blocks = ModuleList([GATv2_Block(hidden_channels, hidden_channels, heads, dropout) for _ in range(n_hidden_blocks - 1)])  # Ajuste para la multiplicación por heads y n-1 bloques ocultos
-#         self.output_block = GATv2_Block(hidden_channels, out_channels, 1, 0)
-
-#         for param in self.parameters():
-#             param.requires_grad = trainable
+#         # No es necesario multiplicar por heads ya que concat=False en GATv2Conv reduce la dimensión
+#         self.hidden_blocks = ModuleList([GATv2_Block(hidden_channels, hidden_channels, heads, dropout) for _ in range(n_hidden_blocks)])
+#         self.output_block = GATv2_Block(hidden_channels, out_channels, 1, dropout)
 
 #     def forward(self, graph:Data):
 #         x, edge_index, batch = graph.x, graph.edge_index, graph.batch
-
-#         x = self.input_block(x, edge_index)  # No necesita 'batch' aquí
+#         x = self.input_block(x, edge_index)
 #         for layer in self.hidden_blocks:
-#             x = layer(x, edge_index)  # Pasar 'x' y 'edge_index' directamente
+#             x = layer(x, edge_index)
 #         x = self.output_block(x, edge_index)
-
 #         return global_mean_pool(x, batch)
-        
 
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-    
-    
-
-    
+       

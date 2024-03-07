@@ -14,7 +14,7 @@ from config import CFG
 
 class Multimodal_Text_Graph_Model(nn.Module):
     def __init__(self, 
-                 text_encoder_model = CFG.text_encoder_name,
+                 text_encoder_name = CFG.text_encoder_name,
                  text_embedding = CFG.text_encoder_embedding,
                  graph_model_name = CFG.graph_encoder_name,
                  graph_embedding = CFG.graph_encoder_graph_embedding,
@@ -31,7 +31,7 @@ class Multimodal_Text_Graph_Model(nn.Module):
         self.graph_embedding_classifier = ClassifierHead(projection_dim, n_classes)
 
 
-        self.text_encoder = TextEncoder(text_encoder_model) #(batch_size, text_embedding)
+        self.text_encoder = TextEncoder(text_encoder_name, trainable=False) #(batch_size, text_embedding)
         self.text_projection_head = ProjectionHead(text_embedding, projection_dim) #(batch_size, projection_dim)
         self.text_embedding_classifier = ClassifierHead(projection_dim, n_classes)
         
@@ -173,20 +173,12 @@ if __name__ == "__main__":
     set_seed()
     
     # Configuración de los parámetros
-    params = {
-        "lr": 1e-3,
-        "batch_size": CFG.batch_size,
-        "epochs": CFG.epochs,
-        "temperature": CFG.temperature,
-        "graph_model_name": CFG.graph_model_name,
-        "text_encoder_model": CFG.text_encoder_model,
-        "text_embedding": CFG.text_embedding,
-        "graph_embedding": CFG.graph_embedding,
-        "graph_channels": CFG.graph_channels,
-        "projection_dim": CFG.projection_dim,
-        "num_workers": CFG.num_workers,
-        "log": True
-    }
+    config = CFG()
+    
+    # Convert the config to a dictionary
+    params = config.__dict__
+
+    print(params)
 
     # Crear un writer para el logdir
     if params["log"]:

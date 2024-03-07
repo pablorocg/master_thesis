@@ -1230,7 +1230,7 @@ def collate_function_v2(batch):
     
     # 1 positive pair -> text corresponds to graph
     # 0 negative pair -> text does not correspond to graph
-    type_of_pair = (torch.rand(len(graph_labels)) < CFG.pos_neg_ratio).long()
+    type_of_pair = (torch.rand(len(graph_labels)) < CFG.pos_neg_pair_ratio).long()
     
 
     

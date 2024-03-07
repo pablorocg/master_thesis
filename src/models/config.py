@@ -25,10 +25,9 @@ class CFG:
         self.graph_encoder_dropout = 0.2 # Dropout del encoder de grafo
         self.graph_encoder_n_hidden_blocks = 5 # Número de bloques ocultos del encoder de grafo
         
-
-        # Configuración del modelo de texto
-        self.text_encoder_tokenizer = "emilyalsentzer/Bio_ClinicalBERT"#"medicalai/ClinicalBERT"
-        self.text_encoder_name = "emilyalsentzer/Bio_ClinicalBERT"#"medicalai/ClinicalBERT"
+        
+        self.text_encoder_tokenizer = "emilyalsentzer/Bio_ClinicalBERT"
+        self.text_encoder_name = "emilyalsentzer/Bio_ClinicalBERT"
         self.text_encoder_embedding = 768
         self.text_encoder_trainable = True
         
@@ -37,8 +36,6 @@ class CFG:
         self.projection_head_dropout = 0.15
 
         self.n_classes = 32
-        
-
 
         # Contrastive loss parameters
         self.theta = 0.5
@@ -46,6 +43,11 @@ class CFG:
         self.distance = 'cosine'
         self.weighted_loss = True
         assert self.distance in ['cosine', 'euclidean'], f"Distance {self.distance} not supported"
+
+
+if __name__ == "__main__":
+    cfg = CFG()
+    print(tabulate([(name, value) for name, value in vars(cfg).items()]))
 
     
  
