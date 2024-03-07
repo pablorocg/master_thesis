@@ -3,7 +3,8 @@ __pycache__/
 tractoinferno_graphs/
 tractoinferno_preprocessed_mni/
 .vscode/
-runs/
+runs/*
 tractoinferno/*
 .neptune/
 ./embeddings_logs/*
+weights/*

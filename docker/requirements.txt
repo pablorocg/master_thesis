@@ -10,4 +10,5 @@ transformers
 tabulate
 neptune
 torchmetrics
+tensorboard
 

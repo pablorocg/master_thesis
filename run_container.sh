@@ -1,2 +1,3 @@
-docker run --rm -it --gpus all --name tfm_prg -p 8888:8888 --memory="30g" -v /mnt/Data/Datasets/Tractoinferno:/app/dataset -v /home/vvillena/tfm_prg/tfm_prg:/app pablorg:torch_latest /bin/bash
+docker run --rm -dit --gpus all --name tfm_prg -p 8888:8888 --memory="30g" -v /mnt/Data/Datasets/Tractoinferno:/app/dataset -v /home/vvillena/tfm_prg/tfm_prg:/app pablorg:torch_latest /bin/bash
 # jupyter notebook --ip 0.0.0.0 --no-browser --allow-root
+

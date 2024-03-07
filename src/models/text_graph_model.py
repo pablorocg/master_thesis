@@ -1,5 +1,5 @@
-from encoders import TextEncoder, ProjectionHead, ClassifierHead, GCN_Encoder
-from torch_geometric.nn import global_mean_pool, GAE, VGAE
+from encoders import TextEncoder, ProjectionHead, ClassifierHead, GCN_Encoder, GATv2_Encoder
+from torch_geometric.nn import global_mean_pool, GATv2Conv
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,24 +14,26 @@ from config import CFG
 
 class Multimodal_Text_Graph_Model(nn.Module):
     def __init__(self, 
-                 text_encoder_model = CFG.text_encoder_model,
-                 text_embedding = CFG.text_embedding,
-                 graph_model_name = CFG.graph_model_name,
-                 graph_embedding = CFG.graph_embedding,
-                 graph_channels = CFG.graph_channels,
-                 projection_dim = CFG.projection_dim,
-                 
+                 text_encoder_model = CFG.text_encoder_name,
+                 text_embedding = CFG.text_encoder_embedding,
+                 graph_model_name = CFG.graph_encoder_name,
+                 graph_embedding = CFG.graph_encoder_graph_embedding,
+                 graph_channels = CFG.graph_encoder_input_channels,
+                 projection_dim = CFG.projection_head_output_dim,
+                 n_classes = CFG.n_classes,
                  device = CFG.device):
         
         super(Multimodal_Text_Graph_Model, self).__init__()
+        if graph_model_name == "GraphConvolutionalNetwork":
+            self.graph_encoder = GCN_Encoder(graph_channels, graph_embedding)
         
-        self.graph_encoder = GCN_Encoder(graph_channels, projection_dim) #(batch_size, text_embedding)
-        self.graph_embedding_classifier = ClassifierHead(projection_dim, CFG.n_classes)
+        self.graph_projection_head = ProjectionHead(graph_embedding, projection_dim) #(batch_size, projection_dim)
+        self.graph_embedding_classifier = ClassifierHead(projection_dim, n_classes)
 
 
         self.text_encoder = TextEncoder(text_encoder_model) #(batch_size, text_embedding)
         self.text_projection_head = ProjectionHead(text_embedding, projection_dim) #(batch_size, projection_dim)
-        self.text_embedding_classifier = ClassifierHead(projection_dim, CFG.n_classes)
+        self.text_embedding_classifier = ClassifierHead(projection_dim, n_classes)
         
         self.device = device
         self.to(device)
@@ -42,14 +44,22 @@ class Multimodal_Text_Graph_Model(nn.Module):
         # text_batch = {k: v.to(self.device) for k, v in text_batch.items()}
         
         graph_projections = self.graph_encoder(graph_batch) # (batch_size, projection_dim)
-   
+        graph_projections = self.graph_projection_head(graph_projections) # (batch_size, projection_dim)
+
         graph_predicted_labels = self.graph_embedding_classifier(graph_projections) # (batch_size, n_classes)
         
         text_projections = self.text_encoder(text_batch) # (batch_size, text_embedding)
         text_projections = self.text_projection_head(text_projections) # (batch_size, projection_dim)
+
         text_predicted_labels = self.text_embedding_classifier(text_projections) # (batch_size, n_classes)
 
         return graph_projections, text_projections, graph_predicted_labels, text_predicted_labels
+    
+
+    def load_weights(self, path):
+        self.load_state_dict(torch.load(path))
+        self.eval()
+        return self
     
 def get_streamline_weights():
     count_fibras = {0: 746528,
@@ -96,7 +106,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class CategoricalContrastiveLoss(nn.Module):
-    def __init__(self, theta=0.5, margin = 1.0, dw = 'euclidean', weights = True):
+    def __init__(self, theta=CFG.theta, margin = CFG.margin, dw = CFG.distance, weights = CFG.weighted_loss):
         super(CategoricalContrastiveLoss, self).__init__()
         self.theta = theta
         self.margin = margin  # margen
@@ -106,11 +116,12 @@ class CategoricalContrastiveLoss(nn.Module):
     def forward(self, graph_emb, text_emb, graph_label, text_label, graph_pred_label, text_pred_label, y):
         # Calcula la pérdida de disimilitud como la distancia euclídea
         if self.dw == 'euclidean':
+            # Si se utiliza la dist euclidea normalizar los embeddings
+            graph_emb = F.normalize(graph_emb, p=2, dim=1)
+            text_emb = F.normalize(text_emb, p=2, dim=1)
             dw = torch.norm(graph_emb - text_emb, p=2, dim=1)
         elif self.dw == 'cosine':
             dw = 1 - F.cosine_similarity(graph_emb, text_emb, dim=1)
-
-        # dw = torch.norm(graph_emb - text_emb, p=2, dim=1)
 
         loss_similar = (1 - y) * torch.pow(dw, 2)# Pérdida para pares similares: Ls(Dw) = Dw^2
         loss_dissimilar = y * torch.pow(F.relu(self.margin - dw), 2)# Pérdida para pares disímiles: Ld(Dw) = max(0, m - Dw)^2
@@ -130,94 +141,6 @@ class CategoricalContrastiveLoss(nn.Module):
         return loss.mean()
 
 
-        
-    # def clasificar(self, graph_batch):
-    #     """
-    #     Clasifica los logits en una de las posibles etiquetas.
-    #     """
-    #     self.eval()
-    #     results = {}
-    #     TRACT_LIST = {
-    #         'AF_L': {'id': 0, 'tract': 'arcuate fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'AF_R': {'id': 1, 'tract': 'arcuate fasciculus','side' : 'right', 'type': 'association'},
-    #         'CC_Fr_1': {'id': 2, 'tract': 'corpus callosum, frontal lobe', 'side' : 'most anterior part of the frontal lobe', 'type': 'commissural'},
-    #         'CC_Fr_2': {'id': 3, 'tract': 'corpus callosum, frontal lobe', 'side' : 'most posterior part of the frontal lobe','type': 'commissural'},
-    #         'CC_Oc': {'id': 4, 'tract': 'corpus callosum, occipital lobe', 'side' : 'central', 'type': 'commissural'},
-    #         'CC_Pa': {'id': 5, 'tract': 'corpus callosum, parietal lobe', 'side' : 'central', 'type': 'commissural'},
-    #         'CC_Pr_Po': {'id': 6, 'tract': 'corpus callosum, pre/post central gyri', 'side' : 'central', 'type': 'commissural'},
-    #         'CG_L': {'id': 7, 'tract': 'cingulum', 'side' : 'left', 'type': 'association'},
-    #         'CG_R': {'id': 8, 'tract': 'cingulum', 'side' : 'right', 'type': 'association'},
-    #         'FAT_L': {'id': 9, 'tract': 'frontal aslant tract', 'side' : 'left', 'type': 'association'},
-    #         'FAT_R': {'id': 10, 'tract': 'frontal aslant tract', 'side' : 'right', 'type': 'association'},
-    #         'FPT_L': {'id': 11, 'tract': 'fronto-pontine tract', 'side' : 'left', 'type': 'association'},
-    #         'FPT_R': {'id': 12, 'tract': 'fronto-pontine tract', 'side' : 'right', 'type': 'association'},
-    #         'FX_L': {'id': 13, 'tract': 'fornix', 'side' : 'left', 'type': 'commissural'},
-    #         'FX_R': {'id': 14, 'tract': 'fornix', 'side' : 'right', 'type': 'commissural'},
-    #         'IFOF_L': {'id': 15, 'tract': 'inferior fronto-occipital fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'IFOF_R': {'id': 16, 'tract': 'inferior fronto-occipital fasciculus', 'side' : 'right', 'type': 'association'},
-    #         'ILF_L': {'id': 17, 'tract': 'inferior longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'ILF_R': {'id': 18, 'tract': 'inferior longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
-    #         'MCP': {'id': 19, 'tract': 'middle cerebellar peduncle', 'side' : 'central', 'type': 'commissural'},
-    #         'MdLF_L': {'id': 20, 'tract': 'middle longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'MdLF_R': {'id': 21, 'tract': 'middle longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
-    #         'OR_ML_L': {'id': 22, 'tract': 'optic radiation, Meyer loop', 'side' : 'left', 'type': 'projection'},
-    #         'OR_ML_R': {'id': 23, 'tract': 'optic radiation, Meyer loop', 'side' : 'right', 'type': 'projection'},
-    #         'POPT_L': {'id': 24, 'tract': 'pontine crossing tract', 'side' : 'left', 'type': 'commissural'},
-    #         'POPT_R': {'id': 25, 'tract': 'pontine crossing tract', 'side' : 'right', 'type': 'commissural'},
-    #         'PYT_L': {'id': 26, 'tract': 'pyramidal tract', 'side' : 'left', 'type': 'projection'},
-    #         'PYT_R': {'id': 27, 'tract': 'pyramidal tract', 'side' : 'right', 'type': 'projection'},
-    #         'SLF_L': {'id': 28, 'tract': 'superior longitudinal fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'SLF_R': {'id': 29, 'tract': 'superior longitudinal fasciculus', 'side' : 'right', 'type': 'association'},
-    #         'UF_L': {'id': 30, 'tract': 'uncinate fasciculus', 'side' : 'left', 'type': 'association'},
-    #         'UF_R': {'id': 31, 'tract': 'uncinate fasciculus', 'side' : 'right', 'type': 'association'}
-    #     }
-    #     LABELS = {value["id"]: key for key, value in TRACT_LIST.items()}# Diccionario id -> Etiqueta
-
-    #     tokenizer = AutoTokenizer.from_pretrained(CFG.text_encoder_model)#'distilbert-base-uncased'
-        
-    #     for category in ['tract', 'side', 'type']:
-            
-    #         posible_text_labels = list(set([value[category] for key, value in TRACT_LIST.items()]))
-            
-    #         tokenized_text_labels = tokenizer(posible_text_labels, padding=True, truncation=True, return_tensors="pt", max_length=512)
-    #         tokenized_text_labels = {k: v.to(self.device) for k, v in tokenized_text_labels.items()}
-            
-    #         text_projections = self.text_encoder(tokenized_text_labels)
-    #         # text_projections = self.text_projection_head(text_projections)
-            
-    #         graph_projections = self.graph_encoder.encode(graph_batch.x, graph_batch.edge_index)
-    #         graph_projections = global_mean_pool(graph_projections, graph_batch.batch)
-    #         # graph_projections = self.graph_projection_head(graph_projections)
-            
-    #         graph_embeddings_norm = F.normalize(graph_projections, p=2, dim=-1)
-    #         text_embeddings_norm = F.normalize(text_projections, p=2, dim=-1)
-            
-    #         dot_similarity = text_embeddings_norm @ graph_embeddings_norm.T
-    #         max_similarities, max_indices = dot_similarity.max(dim=0)
-
-            
-    #         real_labels = graph_batch.y.tolist() #-> [0, 1, ...]
-    #         real_labels = [LABELS[label] for label in real_labels] #-> ['AF_L', 'AF_R', ...]
-    #         real_labels = [TRACT_LIST[label][category] for label in real_labels] #-> ['arcuate fasciculus', 'arcuate fasciculus', ...]
-    #         real_labels = torch.tensor([posible_text_labels.index(label) for label in real_labels]).to(self.device) #-> [0, 1, ...]
-
-    #         results[category] = {
-    #             'pred_probs': max_similarities,
-    #             'pred_labels': max_indices,
-    #             'real_labels': real_labels,
-    #             'accuracy': self.metrics[f'accuracy_{category}'](max_indices, real_labels),
-    #             'f1': self.metrics[f'f1_{category}'](max_indices, real_labels),
-    #             'precision': self.metrics[f'precision_{category}'](max_indices, real_labels),
-    #             'recall': self.metrics[f'recall_{category}'](max_indices, real_labels)
-    #         }
-            
-        
-    #     return results
-
-
-
-            
-
 
     
 
@@ -228,7 +151,7 @@ if __name__ == "__main__":
     from transformers import AutoTokenizer
     from torch.utils.data import DataLoader
     from config import CFG
-    from torch.utils.tensorboard import SummaryWriter
+    # from torch.utils.tensorboard import SummaryWriter
     import neptune
     import time
     from torch_dataset import FiberGraphDataset, collate_function_v2
@@ -275,14 +198,14 @@ if __name__ == "__main__":
             api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI1ODA0YzA2NS04MjczLTQyNzItOGE5Mi05ZmI5YjZkMmY3MDcifQ==",
             name=name
         )
-        tb_logger = SummaryWriter(f"runs/{name}")
+        # tb_logger = SummaryWriter(f"runs/{name}")
 
         run["parameters"] = params# Log the parameters to Neptune
         run["config"] = CFG# Log the config to Neptune
 
 
     # Crear el dataset
-    dataset = FiberGraphDataset(root=r'C:\Users\pablo\GitHub\tfm_prg\tractoinferno_graphs\testset')# '/app/dataset/tractoinferno_graphs/testset'
+    dataset = FiberGraphDataset(root='/app/dataset/tractoinferno_graphs/testset')#r'C:\Users\pablo\GitHub\tfm_prg\tractoinferno_graphs\testset' 
     
     # INSTANCIAR EL MODELO
     model = Multimodal_Text_Graph_Model()
@@ -306,7 +229,6 @@ if __name__ == "__main__":
     f1_texts = torchmetrics.classification.MulticlassF1Score(num_classes=CFG.n_classes, average="macro").to(model.device)
 
 
-
     # best loss 
     best_loss = np.inf
 
@@ -314,7 +236,10 @@ if __name__ == "__main__":
     # BUCLE DE ENTRENAMIENTO
     for epoch in range(params["epochs"]):
         for idx_suj, subject in enumerate(dataset):
-            dataloader = DataLoader(subject, batch_size=params['batch_size'], shuffle=True, collate_fn=collate_function_v2, num_workers=params['num_workers'])
+            # Average loss for the epoch
+            avg_loss = 0
+
+            dataloader = DataLoader(subject, batch_size=params['batch_size'], shuffle=True, collate_fn=collate_function_v2, num_workers=params['num_workers'], pin_memory=True, drop_last=True)
             for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumerate(dataloader):
                 
                 model.train()
@@ -359,8 +284,8 @@ if __name__ == "__main__":
 
                     run['train/batch/loss'].log(loss.item())
                 
-                # Actualizar la barra de progreso con el batch loss
-                print(f'\rBatch {i+1} - Loss: {loss.item()} - G. Acc: {batch_graph_accuracy.item()} - T. Acc: {batch_text_accuracy.item()} - G F1: {batch_graph_f1.item()} - T F1: {batch_text_f1.item()} - G AUCROC: {batch_graph_aucroc.item()} - T AUCROC: {batch_text_aucroc.item()}', end="")
+                # Actualizar la barra de progreso con el batch loss con 4 decimales
+                print(f'\rBatch {i+1} - Loss: {loss.item():.4f} - Graph Accuracy: {batch_graph_accuracy.item():.4f} - Text Accuracy: {batch_text_accuracy.item():.4f}', end="")
 
                 # backward pass
                 loss.backward()
@@ -369,7 +294,53 @@ if __name__ == "__main__":
                 optimizer.step()
                 # scheduler.step(loss)
 
-                # guardar el loss 
+                # guardar el loss
+                avg_loss += loss.item()
+
+            # Actualizar el loss del sujeto
+            avg_loss /= len(dataloader)
+            if params["log"]:
+                run['train/subject/loss'].log(avg_loss)
+            print(f"\nSubject {idx_suj} - Loss: {avg_loss}")
+
+            # Computar las métricas para el sujeto
+            graph_aucroc = auroc_graphs.compute()
+            text_aucroc = auroc_texts.compute()
+
+            graph_accuracy = accuracy_graphs.compute()
+            text_accuracy = accuracy_texts.compute()
+
+            graph_f1 = f1_graphs.compute()
+            text_f1 = f1_texts.compute()
+
+            if params["log"]:
+                run['train/subject/graph_accuracy'].log(graph_accuracy.item())
+                run['train/subject/graph_f1'].log(graph_f1.item())
+                run['train/subject/graph_aucroc'].log(graph_aucroc.item())
+
+                run['train/subject/text_accuracy'].log(text_accuracy.item())
+                run['train/subject/text_f1'].log(text_f1.item())
+                run['train/subject/text_aucroc'].log(text_aucroc.item())
+
+            # resetear las métricas
+            auroc_graphs.reset()
+            auroc_texts.reset()
+            accuracy_graphs.reset()
+            accuracy_texts.reset()
+            f1_graphs.reset()
+            f1_texts.reset()
+
+
+
+            if avg_loss < best_loss:
+                best_loss = avg_loss
+                # Guardar los pesos del modelo si el loss es mejor
+                torch.save(model.state_dict(), f"/app/weights/model_{epoch}_suj_{idx_suj}_loss_{best_loss}.pt")
+
+
+
+            # Cerrar el run de Neptune
+            
 
             # Cuando termina el sujeto gurdar los pesos del modelo 
             # if loss.item() < best_loss:

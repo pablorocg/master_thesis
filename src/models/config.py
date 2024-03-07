@@ -2,73 +2,50 @@ import torch
 from tabulate import tabulate
 
 class CFG:
-    # Configuración general
-    debug = True
-    epochs = 1
-    batch_size = 64
-    num_workers = 4
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    lr = 1e-3
-    weight_decay = 1e-3
-    patience = 1
-    factor = 0.8
-    pos_neg_ratio = 1/5
-    
-    
-    # Configuración del modelo de grafo
-    graph_model_name = "GraphConvolutionalNetwork"#"GraphAttentionNetwork"
-    graph_channels = 3
-    n_graph_hidden_blocks = 3
-    graph_hidden_channels = 128
-    graph_embedding = 128
-    heads = 4
-    dropout = 0.2
-    n_hidden_blocks = 5
-    graph_model_trainable = True
+    def __init__(self):
+        # Configuración general
+        self.train_epochs = 1
+        self.train_batch_size = 64
+        self.train_num_workers = 4
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.learning_rate = 1e-3
+        self.optimizer_weight_decay = 1e-4# 1e-3
+        self.scheduler_patience = 1
+        
 
-# tokenizer = AutoTokenizer.from_pretrained("medicalai/ClinicalBERT")
-    # Configuración del modelo de texto
-    text_tokenizer = "medicalai/ClinicalBERT"
-    text_encoder_model = "medicalai/ClinicalBERT"
-    text_embedding = 768
-    tex_model_trainable = True
+        # Configuracion para la funcion de collate en el DataLoader
+        self.pos_neg_pair_ratio = 1/5 # 1 par positivo por cada 5 pares negativos
+        
+        
+        # Configuración del modelo de grafo
+        self.graph_encoder_name ="GraphConvolutionalNetwork" # Tipo de encoder de grafo que se usará
+        self.graph_encoder_input_channels = 3 # Canales de entrada del grafo (número de características) (x, y, z)
+        self.graph_encoder_hidden_channels = 128 # Canales ocultos del encoder de grafo
+        self.graph_encoder_graph_embedding = 128 # Dimensión de la capa de salida del encoder de grafo
+        self.graph_encoder_dropout = 0.2 # Dropout del encoder de grafo
+        self.graph_encoder_n_hidden_blocks = 5 # Número de bloques ocultos del encoder de grafo
+        
+
+        # Configuración del modelo de texto
+        self.text_encoder_tokenizer = "emilyalsentzer/Bio_ClinicalBERT"#"medicalai/ClinicalBERT"
+        self.text_encoder_name = "emilyalsentzer/Bio_ClinicalBERT"#"medicalai/ClinicalBERT"
+        self.text_encoder_embedding = 768
+        self.text_encoder_trainable = True
+        
+        # for projection head; used for both image and text encoders
+        self.projection_head_output_dim = 128 # 128
+        self.projection_head_dropout = 0.15
+
+        self.n_classes = 32
+        
+
+
+        # Contrastive loss parameters
+        self.theta = 0.5
+        self.margin = 1.0
+        self.distance = 'cosine'
+        self.weighted_loss = True
+        assert self.distance in ['cosine', 'euclidean'], f"Distance {self.distance} not supported"
+
     
-    temperature = 1.0
-
-    # for projection head; used for both image and text encoders
-    num_projection_layers = 1
-    projection_dim = 128 
-    dropout = 0.1
-
-    n_classes = 32
-
-    # Load model directly
-
-    assert text_encoder_model in ["distilbert-base-uncased", "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext", "medicalai/ClinicalBERT"]
-    assert graph_model_name in ["GraphConvolutionalNetwork", "GraphAttentionNetwork"]
-    
-    
-    print("Configuración del modelo:")
-    print(tabulate([
-        ["Modelo de grafo", graph_model_name],
-        ["Canales de entrada", graph_channels],
-        ["Canales ocultos", graph_hidden_channels],
-        ["Embedding", graph_embedding],
-        ["Cabezas de atención", heads],
-        ["Dropout", dropout],
-        ["Bloques ocultos", n_hidden_blocks],
-        ["Modelo de grafo entrenable", graph_model_trainable],
-        ["Modelo de texto", text_encoder_model],
-        ["Embedding", text_embedding],
-        ["Modelo de texto entrenable", tex_model_trainable],
-        ["Temperatura", temperature],
-        ["Capas de proyección", num_projection_layers],
-        ["Dimensión de proyección", projection_dim],
-        ["Dropout", dropout],
-        ["Dispositivo", device],
-        ["Tasa de aprendizaje", lr],
-        ["Decaimiento de peso", weight_decay],
-        ["Paciencia", patience],
-        ["Factor", factor],
-        ["Debug", debug]
-    ], headers=["Parámetro", "Valor"]), end="\n\n")
+ 

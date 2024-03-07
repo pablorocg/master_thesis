@@ -96,7 +96,7 @@ class ClassifierHead(nn.Module):
 # ======================================GRAPH ENCODER============================================================
 
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, global_mean_pool, BatchNorm
+from torch_geometric.nn import GCNConv, global_mean_pool, BatchNorm, GATv2Conv
 from torch_geometric.data import Data
 from torch.nn import ModuleList
 
@@ -142,8 +142,46 @@ class GCN_Encoder(nn.Module):
 
 
 
+class GATv2_Block(nn.Module):
+    def __init__(self, in_channels, out_channels, heads, dropout=0.0):  # Establecer un valor predeterminado para dropout
+        super(GATv2_Block, self).__init__()
+        self.conv = GATv2Conv(in_channels, out_channels, heads=heads, concat=False, dropout=dropout)
+        self.relu = nn.GELU()
+        self.bn = BatchNorm(out_channels)
+        self.dropout = nn.Dropout(p=dropout)  # Siempre inicializar, pero el dropout será 0 si no se desea
 
+    def forward(self, x, edge_index):  # Cambiar la firma para aceptar componentes del grafo directamente
+        x = self.conv(x, edge_index)
+        x = self.relu(x)
+        x = self.bn(x)
+        x = self.dropout(x)
+        return x
+    
+class GATv2_Encoder(nn.Module):
+    def __init__(self, 
+                 in_channels,  # Valores configurables
+                 hidden_channels, 
+                 out_channels, 
+                 heads, 
+                 dropout=0.1,
+                 n_hidden_blocks=1):
+        
+        super(GATv2_Encoder, self).__init__()
+        # Asegúrate de que los canales de salida de la capa anterior coincidan con los canales de entrada de la siguiente
+        self.input_block = GATv2_Block(in_channels, hidden_channels, heads, dropout)
+        # No es necesario multiplicar por heads ya que concat=False en GATv2Conv reduce la dimensión
+        self.hidden_blocks = ModuleList([GATv2_Block(hidden_channels, hidden_channels, heads, dropout) for _ in range(n_hidden_blocks)])
+        self.output_block = GATv2_Block(hidden_channels, out_channels, 1, dropout)
 
+    def forward(self, graph:Data):
+        x, edge_index, batch = graph.x, graph.edge_index, graph.batch
+        x = self.input_block(x, edge_index)
+        for layer in self.hidden_blocks:
+            x = layer(x, edge_index)
+        x = self.output_block(x, edge_index)
+        return global_mean_pool(x, batch)
+
+       
 
 
 
