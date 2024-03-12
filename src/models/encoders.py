@@ -8,7 +8,7 @@ class TextEncoder(nn.Module):
     """Text Encoder that wraps a pretrained transformer model for embedding extraction."""
 
     def __init__(self, 
-                pretrained_model_name_or_path = "emilyalsentzer/Bio_ClinicalBERT",
+                pretrained_model_name_or_path = CFG.text_encoder_name,
                 trainable: bool = False) -> None:
         """
         Initializes the TextEncoder with a pretrained model.

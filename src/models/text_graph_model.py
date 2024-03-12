@@ -1,5 +1,5 @@
-from encoders import TextEncoder, ProjectionHead, ClassifierHead, GCN_Encoder, GATv2_Encoder
-from torch_geometric.nn import global_mean_pool, GATv2Conv
+from encoders import TextEncoder, ProjectionHead, ClassifierHead, GCN_Encoder
+# from torch_geometric.nn import global_mean_pool, GATv2Conv
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,7 +7,7 @@ import torch
 import torch_geometric
 from transformers import AutoTokenizer
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-
+from tabulate import tabulate
 import torchmetrics
 from config import CFG
 
@@ -176,9 +176,11 @@ if __name__ == "__main__":
     config = CFG()
     
     # Convert the config to a dictionary
-    params = config.__dict__
+    params = {name: value for name, value in CFG.__dict__.items() if not name.startswith("__")}
 
-    print(params)
+    # Imprimir los parámetros con tabulate
+    print(tabulate(params.items(), tablefmt="fancy_grid"))
+    
 
     # Crear un writer para el logdir
     if params["log"]:
@@ -203,11 +205,11 @@ if __name__ == "__main__":
     model = Multimodal_Text_Graph_Model()
 
     # INSTANCIAR EL OPTIMIZADOR Y EL SCHEDULER
-    optimizer = torch.optim.AdamW(model.parameters(), lr=params['lr'], weight_decay=1e-3)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'], weight_decay=1e-3)
     # scheduler = ReduceLROnPlateau(optimizer, patience=1500, factor=0.95, verbose=True)
 
     # INSTANCIAR LA FUNCIÓN DE PÉRDIDA
-    criterion = CategoricalContrastiveLoss(theta=0.5, margin=0.8, dw='cosine')
+    criterion = CategoricalContrastiveLoss(theta=params['theta'], margin=params['margin'], dw=params['distance'], weights=params['weighted_loss'])
     criterion.to(model.device)
 
     # DEFINIR LAS MÉTRICAS
@@ -226,12 +228,12 @@ if __name__ == "__main__":
 
 
     # BUCLE DE ENTRENAMIENTO
-    for epoch in range(params["epochs"]):
+    for epoch in range(params['train_epochs']):
         for idx_suj, subject in enumerate(dataset):
             # Average loss for the epoch
             avg_loss = 0
 
-            dataloader = DataLoader(subject, batch_size=params['batch_size'], shuffle=True, collate_fn=collate_function_v2, num_workers=params['num_workers'], pin_memory=True, drop_last=True)
+            dataloader = DataLoader(subject, batch_size=params['train_batch_size'], shuffle=True, collate_fn=collate_function_v2, num_workers=params['train_num_workers'], pin_memory=True, drop_last=True)
             for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumerate(dataloader):
                 
                 model.train()
@@ -291,7 +293,7 @@ if __name__ == "__main__":
 
             # Actualizar el loss del sujeto
             avg_loss /= len(dataloader)
-            if params["log"]:
+            if params['log']:
                 run['train/subject/loss'].log(avg_loss)
             print(f"\nSubject {idx_suj} - Loss: {avg_loss}")
 
