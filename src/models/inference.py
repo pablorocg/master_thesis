@@ -19,7 +19,7 @@ logger = SummaryWriter("/app/weights/tensorboard")
 model = model = Multimodal_Text_Graph_Model()
 
 # Load textgraph model with weights
-model.load_state_dict(torch.load("/app/weights/model_0_suj_1_loss_0.25875409948059314.pt", map_location=CFG.device))
+model.load_state_dict(torch.load("/app/weights/model_0_suj_20_loss_0.1034173529035748.pt", map_location=CFG.device))
 model.to(CFG.device)
 model.eval()
 print(f'modelo cargado correctamente')
@@ -27,10 +27,10 @@ print(f'modelo cargado correctamente')
 
 ds = FiberGraphDataset(root='/app/dataset/tractoinferno_graphs/testset')
 
-subject = ds[20]
+
 
 print('Sujeto cargado correctamente ')
-dl = DataLoader(ds, batch_size=64, shuffle=False, collate_fn=collate_function_v2)
+dl = DataLoader(ds[0], batch_size=1024, shuffle=False, collate_fn=collate_function_v2)
 
 for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumerate(dl):
                 
@@ -48,8 +48,10 @@ for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumera
         g_proj, t_proj, g_pred_lab, t_pred_lab = model(graph_data, text_data)
 
     # convert to numpy and save the projections to visualize them later using tensorboard
-    g_proj = g_proj.cpu().numpy()
-    t_proj = t_proj.cpu().numpy()
+    g_proj = g_proj.detach().cpu().numpy()
+    t_proj = t_proj.detach().cpu().numpy()
+
+    
 
     
 
@@ -57,13 +59,12 @@ for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumera
     # log the embeddings and labels to tensorboard
     logger.add_embedding(g_proj, metadata=graph_label, tag="graph_embeddings")
     logger.add_embedding(t_proj, metadata=text_label, tag="text_embeddings")
-
-    # log the predictions and labels to tensorboard
-    # logger.add_embedding(g_pred_lab, metadata=graph_label, tag="graph_predictions")
-    # logger.add_embedding(t_pred_lab, metadata=text_label, tag="text_predictions")
-
-    # # log the type of pair to tensorboard
-    # logger.add_embedding(type_of_pair, metadata=type_of_pair, tag="type_of_pair")
+    
+    # si la i vale 1 romper el bucle
+    if i==1:
+        print('Fin de la inferencia')
+        break
+    
 
     print(f'{i}/{len(dl)}')
     # # log the confusion matrix to tensorboard

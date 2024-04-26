@@ -30,7 +30,7 @@ class CFG:
     text_encoder_tokenizer = "emilyalsentzer/Bio_ClinicalBERT"
     text_encoder_name = "emilyalsentzer/Bio_ClinicalBERT"
     text_encoder_embedding = 768
-    text_encoder_trainable = True
+    text_encoder_trainable = False
     
     # for projection head; used for both image and text encoders
     projection_head_output_dim = 128 # 128
@@ -42,7 +42,7 @@ class CFG:
     theta = 0.5
     margin = 1.0
     distance = 'cosine'
-    weighted_loss = True
+    weighted_loss = False
     assert distance in ['cosine', 'euclidean'], f"Distance {distance} not supported"
 
 

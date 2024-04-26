@@ -56,10 +56,7 @@ class Multimodal_Text_Graph_Model(nn.Module):
         return graph_projections, text_projections, graph_predicted_labels, text_predicted_labels
     
 
-    def load_weights(self, path):
-        self.load_state_dict(torch.load(path))
-        self.eval()
-        return self
+    
     
 def get_streamline_weights():
     count_fibras = {0: 746528,
@@ -104,6 +101,7 @@ def get_streamline_weights():
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchmetrics.functional.classification import multiclass_accuracy
 
 class CategoricalContrastiveLoss(nn.Module):
     def __init__(self, theta=CFG.theta, margin = CFG.margin, dw = CFG.distance, weights = CFG.weighted_loss):
@@ -116,11 +114,12 @@ class CategoricalContrastiveLoss(nn.Module):
     def forward(self, graph_emb, text_emb, graph_label, text_label, graph_pred_label, text_pred_label, y):
         # Calcula la pérdida de disimilitud como la distancia euclídea
         if self.dw == 'euclidean':
-            # Si se utiliza la dist euclidea normalizar los embeddings
             graph_emb = F.normalize(graph_emb, p=2, dim=1)
             text_emb = F.normalize(text_emb, p=2, dim=1)
             dw = torch.norm(graph_emb - text_emb, p=2, dim=1)
         elif self.dw == 'cosine':
+            graph_emb = F.normalize(graph_emb, p=2, dim=1)
+            text_emb = F.normalize(text_emb, p=2, dim=1)
             dw = 1 - F.cosine_similarity(graph_emb, text_emb, dim=1)
 
         loss_similar = (1 - y) * torch.pow(dw, 2)# Pérdida para pares similares: Ls(Dw) = Dw^2
@@ -141,6 +140,80 @@ class CategoricalContrastiveLoss(nn.Module):
         return loss.mean()
 
 
+def train(model, data_loader, optimizer, criterion, device="cuda"):
+    model.train()  # Pone el modelo en modo entrenamiento
+    loss_list, accuracy_g_list, accuracy_t_list = [], [], []
+
+    for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumerate(data_loader):
+        
+        # Enviar datos al dispositivo de una vez, incluyendo diccionarios de manera eficiente
+        graph_data = graph_data.to(device)
+        text_data = {k: v.to(device) for k, v in text_data.items()}
+        graph_label = graph_label.to(device)
+        text_label = text_label.to(device)
+        type_of_pair = type_of_pair.to(device)
+
+        optimizer.zero_grad()  # Reinicia los gradientes
+
+        # Realiza el forward pass
+        g_proj, t_proj, g_pred_lab, t_pred_lab = model(graph_data, text_data)
+        loss = criterion(g_proj, t_proj, graph_label, text_label, g_pred_lab, t_pred_lab, type_of_pair)
+        
+        # Realiza el backward pass y actualiza los pesos
+        loss.backward()
+        optimizer.step()
+
+        batch_graph_accuracy = multiclass_accuracy(g_pred_lab, graph_label, 32, average='micro')
+        batch_text_accuracy = multiclass_accuracy(t_pred_lab, text_label, 32, average='micro')
+
+        loss_list.append(loss.item())
+        accuracy_g_list.append(batch_graph_accuracy.item())
+        accuracy_t_list.append(batch_text_accuracy.item())
+
+
+        if params["log"]:
+            run['train/batch/graph_accuracy'].log(batch_graph_accuracy)
+            run['train/batch/text_accuracy'].log(batch_text_accuracy)
+            run['train/batch/loss'].log(loss)
+
+    avg_loss = np.mean(loss_list)
+    accuracy_g = np.mean(accuracy_g_list)
+    accuracy_t = np.mean(accuracy_t_list)
+
+    return avg_loss, accuracy_g, accuracy_t
+
+def validate(model, data_loader, criterion, device):
+    model.eval()  # Pone el modelo en modo evaluación
+    loss_list, accuracy_g_list, accuracy_t_list = [], [], []
+
+    with torch.no_grad():
+        for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumerate(data_loader):
+            graph_data = graph_data.to(device)
+            text_data = {k: v.to(device) for k, v in text_data.items}
+            graph_label = graph_label.to(device)
+            text_label = text_label.to(device)
+            type_of_pair = type_of_pair.to(device)
+
+            g_proj, t_proj, g_pred_lab, t_pred_lab = model(graph_data, text_data)
+            loss = criterion(g_proj, t_proj, graph_label, text_label, g_pred_lab, t_pred_lab, type_of_pair)
+
+            batch_graph_accuracy = multiclass_accuracy(g_pred_lab, graph_label, 32, average='micro')
+            batch_text_accuracy = multiclass_accuracy(t_pred_lab, text_label, 32, average='micro')
+
+            loss_list.append(loss.item())
+            accuracy_g_list.append(batch_graph_accuracy.item())
+            accuracy_t_list.append(batch_text_accuracy.item())
+
+            if params["log"]:
+                run['validation/batch/graph_accuracy'].log(batch_graph_accuracy)
+                run['validation/batch/text_accuracy'].log(batch_text_accuracy)
+                run['validation/batch/loss'].log(loss)
+
+    avg_loss = np.mean(loss_list)
+    accuracy_g = np.mean(accuracy_g_list)
+    accuracy_t = np.mean(accuracy_t_list)
+
+    return avg_loss, accuracy_g, accuracy_t
 
     
 
@@ -192,214 +265,108 @@ if __name__ == "__main__":
             api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI1ODA0YzA2NS04MjczLTQyNzItOGE5Mi05ZmI5YjZkMmY3MDcifQ==",
             name=name
         )
-        # tb_logger = SummaryWriter(f"runs/{name}")
 
         run["parameters"] = params# Log the parameters to Neptune
         run["config"] = CFG# Log the config to Neptune
 
 
     # Crear el dataset
-    dataset = FiberGraphDataset(root='/app/dataset/tractoinferno_graphs/testset')#r'C:\Users\pablo\GitHub\tfm_prg\tractoinferno_graphs\testset' 
-    
-    # INSTANCIAR EL MODELO
+    train_dataset = FiberGraphDataset(root='/app/dataset/Tractoinferno/tractoinferno_graphs/trainset')
+    val_dataset = FiberGraphDataset(root='/app/dataset/Tractoinferno/tractoinferno_graphs/validset')
+
     model = Multimodal_Text_Graph_Model()
-
-    # INSTANCIAR EL OPTIMIZADOR Y EL SCHEDULER
-    optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'], weight_decay=1e-3)
-    # scheduler = ReduceLROnPlateau(optimizer, patience=1500, factor=0.95, verbose=True)
-
-    # INSTANCIAR LA FUNCIÓN DE PÉRDIDA
-    criterion = CategoricalContrastiveLoss(theta=params['theta'], margin=params['margin'], dw=params['distance'], weights=params['weighted_loss'])
+    optimizer = torch.optim.AdamW(model.parameters(), 
+                                  lr=params['learning_rate'], 
+                                  weight_decay=1e-3)
+    criterion = CategoricalContrastiveLoss(theta=params['theta'], 
+                                           margin=params['margin'], 
+                                           dw=params['distance'], 
+                                           weights=params['weighted_loss'])
     criterion.to(model.device)
 
-    # DEFINIR LAS MÉTRICAS
-    auroc_graphs = torchmetrics.classification.MulticlassAUROC(num_classes=CFG.n_classes, average="macro").to(model.device)
-    auroc_texts = torchmetrics.classification.MulticlassAUROC(num_classes=CFG.n_classes, average="macro").to(model.device)
-
-    accuracy_graphs = torchmetrics.classification.MulticlassAccuracy(num_classes=CFG.n_classes, average="macro").to(model.device)
-    accuracy_texts = torchmetrics.classification.MulticlassAccuracy(num_classes=CFG.n_classes, average="macro").to(model.device)
-
-    f1_graphs = torchmetrics.classification.MulticlassF1Score(num_classes=CFG.n_classes, average="macro").to(model.device)
-    f1_texts = torchmetrics.classification.MulticlassF1Score(num_classes=CFG.n_classes, average="macro").to(model.device)
-
-
-    # best loss 
-    best_loss = np.inf
 
 
     # BUCLE DE ENTRENAMIENTO
     for epoch in range(params['train_epochs']):
-        for idx_suj, subject in enumerate(dataset):
-            # Average loss for the epoch
-            avg_loss = 0
+        loss, g_acc, t_acc = [], [], []
+        # Entrenar el modelo
+        for idx_suj, subject in enumerate(train_dataset):
+            dataloader = DataLoader(subject, 
+                                    batch_size=params['train_batch_size'], 
+                                    shuffle=True, 
+                                    collate_fn=collate_function_v2, 
+                                    num_workers=params['train_num_workers'], 
+                                    pin_memory=False, 
+                                    drop_last=False)
+            
+            avg_subj_loss, accuracy_subj_g, accuracy_subj_t = train(model, 
+                                                                    dataloader, 
+                                                                    optimizer, 
+                                                                    criterion, 
+                                                                    device=model.device)
+            
 
-            dataloader = DataLoader(subject, batch_size=params['train_batch_size'], shuffle=True, collate_fn=collate_function_v2, num_workers=params['train_num_workers'], pin_memory=True, drop_last=True)
-            for i, (graph_data, text_data, graph_label, text_label, type_of_pair) in enumerate(dataloader):
-                
-                model.train()
-                
-                # send data to device
-                graph_data = graph_data.to(model.device)
-                text_data = {k: v.to(model.device) for k, v in text_data.items()}
-                graph_label = graph_label.to(model.device)
-                text_label = text_label.to(model.device)
-                type_of_pair = type_of_pair.to(model.device)
+            print(f"\r [Train] Epoch {epoch} - Sujeto {idx_suj} - Loss: {avg_subj_loss} - Accuracy Graph: {accuracy_subj_g} - Accuracy Text: {accuracy_subj_t}")
+            
+            if params["log"]:
+                run['train/subject/graph_accuracy'].log(accuracy_subj_g)
+                run['train/subject/text_accuracy'].log(accuracy_subj_t)
+                run['train/subject/loss'].log(avg_subj_loss)
 
+            loss.append(avg_subj_loss)
+            g_acc.append(accuracy_subj_g)
+            t_acc.append(accuracy_subj_t)
+        
+        avg_loss = np.mean(loss)
+        avg_accuracy_g = np.mean(g_acc)
+        avg_accuracy_t = np.mean(t_acc)
 
-                # reset gradients
-                optimizer.zero_grad()
+        if params["log"]:
+            run['train/epoch/graph_accuracy'].log(avg_accuracy_g)
+            run['train/epoch/text_accuracy'].log(avg_accuracy_t)
+            run['train/epoch/loss'].log(avg_loss)
 
-                # forward pass
-                g_proj, t_proj, g_pred_lab, t_pred_lab = model(graph_data, text_data)
-                loss = criterion(g_proj, t_proj, graph_label, text_label, g_pred_lab, t_pred_lab, type_of_pair)
-
-                # Calcular el accuracy y el f1
-                g_pred = torch.argmax(g_pred_lab, dim=1)
-                # Calculate metrics for graph data
-                batch_graph_accuracy = accuracy_graphs(g_pred, graph_label)
-                batch_graph_f1 = f1_graphs(g_pred, graph_label)
-                batch_graph_aucroc = auroc_graphs(g_pred_lab, graph_label)
-                
-
-                t_pred = torch.argmax(t_pred_lab, dim=1)
-                # Calculate metrics for text data
-                batch_text_accuracy = accuracy_texts(t_pred, text_label)
-                batch_text_f1 = f1_texts(t_pred, text_label)
-                batch_text_aucroc = auroc_texts(t_pred_lab, text_label)
-
-                if params["log"]:
-                    run['train/batch/graph_accuracy'].log(batch_graph_accuracy.item())
-                    run['train/batch/graph_f1'].log(batch_graph_f1.item())
-                    run['train/batch/graph_aucroc'].log(batch_graph_aucroc.item())
-
-                    run['train/batch/text_accuracy'].log(batch_text_accuracy.item())
-                    run['train/batch/text_f1'].log(batch_text_f1.item())
-                    run['train/batch/text_aucroc'].log(batch_text_aucroc.item())
-
-                    run['train/batch/loss'].log(loss.item())
-                
-                # Actualizar la barra de progreso con el batch loss con 4 decimales
-                print(f'\rBatch {i+1} - Loss: {loss.item():.4f} - Graph Accuracy: {batch_graph_accuracy.item():.4f} - Text Accuracy: {batch_text_accuracy.item():.4f}', end="")
-
-                # backward pass
-                loss.backward()
-                
-                # actualizar los parámetros
-                optimizer.step()
-                # scheduler.step(loss)
-
-                # guardar el loss
-                avg_loss += loss.item()
-
-            # Actualizar el loss del sujeto
-            avg_loss /= len(dataloader)
-            if params['log']:
-                run['train/subject/loss'].log(avg_loss)
-            print(f"\nSubject {idx_suj} - Loss: {avg_loss}")
-
-            # Computar las métricas para el sujeto
-            graph_aucroc = auroc_graphs.compute()
-            text_aucroc = auroc_texts.compute()
-
-            graph_accuracy = accuracy_graphs.compute()
-            text_accuracy = accuracy_texts.compute()
-
-            graph_f1 = f1_graphs.compute()
-            text_f1 = f1_texts.compute()
+            
+        loss, g_acc, t_acc = [], [], []
+        # Validar el modelo
+        for idx_suj, subject in enumerate(val_dataset):
+            dataloader = DataLoader(subject, 
+                                    batch_size=params['train_batch_size'], 
+                                    shuffle=True, 
+                                    collate_fn=collate_function_v2, 
+                                    num_workers=params['train_num_workers'], 
+                                    pin_memory=False, 
+                                    drop_last=False)
+            
+            avg_loss, accuracy_g, accuracy_t = validate(model, 
+                                                        dataloader, 
+                                                        criterion, 
+                                                        device=model.device)
+            
+            print(f"\r[Validation] Epoch {epoch} - Sujeto {idx_suj} - Loss: {avg_loss} - Accuracy Graph: {accuracy_g} - Accuracy Text: {accuracy_t}")
 
             if params["log"]:
-                run['train/subject/graph_accuracy'].log(graph_accuracy.item())
-                run['train/subject/graph_f1'].log(graph_f1.item())
-                run['train/subject/graph_aucroc'].log(graph_aucroc.item())
+                run['validation/subject/graph_accuracy'].log(accuracy_g)
+                run['validation/subject/text_accuracy'].log(accuracy_t)
+                run['validation/subject/loss'].log(avg_loss)
 
-                run['train/subject/text_accuracy'].log(text_accuracy.item())
-                run['train/subject/text_f1'].log(text_f1.item())
-                run['train/subject/text_aucroc'].log(text_aucroc.item())
-
-            # resetear las métricas
-            auroc_graphs.reset()
-            auroc_texts.reset()
-            accuracy_graphs.reset()
-            accuracy_texts.reset()
-            f1_graphs.reset()
-            f1_texts.reset()
-
-
-
-            if avg_loss < best_loss:
-                best_loss = avg_loss
-                # Guardar los pesos del modelo si el loss es mejor
-                torch.save(model.state_dict(), f"/app/weights/model_{epoch}_suj_{idx_suj}_loss_{best_loss}.pt")
-
-
-
-            # Cerrar el run de Neptune
             
+            loss.append(avg_loss)
+            g_acc.append(accuracy_g)
+            t_acc.append(accuracy_t)
+        
+        avg_loss = np.mean(loss)
+        avg_accuracy_g = np.mean(g_acc)
+        avg_accuracy_t = np.mean(t_acc)
 
-            # Cuando termina el sujeto gurdar los pesos del modelo 
-            # if loss.item() < best_loss:
-            #     best_loss = loss.item()
-            #     torch.save(model.state_dict(), f"model_{epoch}_suj{idx_suj}_loss_{best_loss}.pt")
-                
+        if params["log"]:
+            run['validation/epoch/graph_accuracy'].log(avg_accuracy_g)
+            run['validation/epoch/text_accuracy'].log(avg_accuracy_t)
+            run['validation/epoch/loss'].log(avg_loss)
 
 
-
-                
-            
-            
-            
 
         
-        
-        
-        # # 5. EVALUAR EL MODELO
-        # model.eval()
-        # # seleccionar un sujeto aleatorio para evaluar
-        # suj_eval = dataset[28]
-        # total_loss = 0
-        # dataloader = DataLoader(suj_eval, batch_size=params['batch_size'], shuffle=True, collate_fn=collate_function, num_workers=params['num_workers'])
-        # progress_bar_validation = tqdm(dataloader, desc="Validation")
-        # name = f"model_{time.time()}"
-        # tb_logger = SummaryWriter(f"runs/{name}")
-        # all_embeddings, all_labels = [], []
-        # with torch.no_grad():
-        #     for i, (graph_data, text_data) in enumerate(dataloader):
-                
-        #         graph_data = graph_data.to(model.device)
-        #         text_data = {k: v.to(model.device) for k, v in text_data.items()}
-
-        #         # save first 100 batches embeddings
-        #         if i < 100:
-        #             graph_embeddings = model.graph_encoder.encode(graph_data.x, graph_data.edge_index)
-        #             graph_embeddings = global_mean_pool(graph_embeddings, graph_data.batch)
-        #             all_embeddings.append(graph_embeddings.detach().cpu().numpy())
-        #             all_labels.append(graph_data.y.detach().cpu().numpy())
-        #             if i == 99:
-        #                 all_embeddings = np.concatenate(all_embeddings, axis=0)
-        #                 all_labels = np.concatenate(all_labels, axis=0)
-        #                 tb_logger.add_embedding(all_embeddings, metadata=all_labels, tag="embeddings")
-        #                 tb_logger.close()
-                    
-
-        #         # forward pass
-        #         loss = model(graph_data, text_data)
-        #         total_loss += loss.item()
-
-        #         if params["log"]:
-        #             run['eval/batch/loss'].log(loss.item())
-
-        #     # Actualizar el loss del sujeto
-        #     mean_loss = total_loss / len(dataloader)
-        #     if params["log"]:
-        #         run['eval/subject/loss'].log(loss)
-
-                
-
-
-        # # 6. GUARDAR EL MODELO SI ES MEJOR QUE EL ANTERIOR
-        
-        # model.train()
-    # Cerrar el run de Neptune
     run.stop()
     
     

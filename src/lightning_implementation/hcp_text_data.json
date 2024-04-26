@@ -1,0 +1,1298 @@
+{
+    "AF_left": {
+        "id": 0,
+        "tract": "arcuate fasciculus",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "crucial for language production and comprehension, facilitating complex linguistic processing",
+            "connects Broca's area and Wernicke's area, essential for the integration of expressive and receptive language functions"
+        ],
+        "structural_characteristics": [
+            "characterized by a dense bundle of axons, indicating high connectivity between language centers",
+            "shows significant left-right asymmetry, with the left side being more prominent in most individuals"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to aphasia following stroke, particularly in areas supplied by the middle cerebral artery",
+            "degenerative diseases like Alzheimer's can affect its integrity, leading to progressive language deficits"
+        ]
+    },
+    "AF_right": {
+        "id": 1,
+        "tract": "arcuate fasciculus",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports language-related functions, including semantic processing and speech repetition",
+            "plays a role in auditory-motor integration, enabling the translation of speech sounds into articulatory movements"
+        ],
+        "structural_characteristics": [
+            "exhibits a high degree of lateralization, with the right hemisphere being dominant in some individuals",
+            "features a compact bundle of axons, suggesting efficient communication between language centers"
+        ],
+        "vulnerability_to_disease": [
+            "susceptible to damage from traumatic brain injury, leading to language deficits and cognitive impairments",
+            "can be affected by neurodegenerative disorders, such as primary progressive aphasia, causing language deterioration"
+        ]
+    },
+    "ATR_left": {
+        "id": 2,
+        "tract": "anterior thalamic radiation",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports cognitive functions, including memory, learning, and executive control",
+            "facilitates communication between the thalamus and prefrontal cortex, crucial for attention and decision-making"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the anterior thalamus to the frontal lobe, forming a bidirectional pathway",
+            "features a complex network of fibers, reflecting its role in integrating sensory and motor information"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from thalamic lesions, leading to cognitive impairments and memory deficits",
+            "can be affected by neurodegenerative diseases, such as Alzheimer's, causing cognitive decline and executive dysfunction"
+        ]
+    },
+    "ATR_right": {
+        "id": 3,
+        "tract": "anterior thalamic radiation",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports cognitive functions, including memory, learning, and executive control",
+            "facilitates communication between the thalamus and prefrontal cortex, crucial for attention and decision-making"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the anterior thalamus to the frontal lobe, forming a bidirectional pathway",
+            "features a complex network of fibers, reflecting its role in integrating sensory and motor information"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from thalamic lesions, leading to cognitive impairments and memory deficits",
+            "can be affected by neurodegenerative diseases, such as Alzheimer's, causing cognitive decline and executive dysfunction"
+        ]
+    },
+    "CA": {
+        "id": 4,
+        "tract": "commissure anterior",
+        "side": "NA",
+        "type": "commissural",
+        "functional_significance": [
+            "facilitates interhemispheric communication, enabling the transfer of information between the left and right hemispheres",
+            "supports bilateral coordination of motor and sensory functions, essential for complex motor tasks"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal lobes, allowing for the exchange of information between homologous regions",
+            "features a dense bundle of fibers, reflecting its role in synchronizing cognitive processes across hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "susceptible to damage from traumatic brain injury, leading to deficits in motor coordination and cognitive function",
+            "can be affected by neurodevelopmental disorders, such as agenesis of the corpus callosum, causing cognitive impairments"
+        ]
+    },
+    "CC_1": {
+        "id": 5,
+        "tract": "corpus callosum",
+        "side": "rostrum",
+        "type": "commissural",
+        "functional_significance": [
+            "facilitates communication between the prefrontal cortices, supporting executive functions and decision-making",
+            "enables the integration of cognitive processes across hemispheres, essential for complex problem-solving"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal lobes, forming a bidirectional pathway for information exchange",
+            "features a thin, curved structure, reflecting its role in coordinating cognitive functions between hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from traumatic brain injury, leading to deficits in executive functions and cognitive processing",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing cognitive impairments and motor deficits"
+        ]
+    },
+    "CC_2": {
+        "id": 6,
+        "tract": "corpus callosum",
+        "side": "genu",
+        "type": "commissural",
+        "functional_significance": [
+            "supports communication between the prefrontal cortices, facilitating executive functions and decision-making",
+            "enables the integration of cognitive processes across hemispheres, crucial for complex problem-solving"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal lobes, forming a bidirectional pathway for information exchange",
+            "features a curved, compact structure, reflecting its role in coordinating cognitive functions between hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "susceptible to damage from traumatic brain injury, leading to deficits in executive functions and cognitive processing",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing cognitive impairments and motor deficits"
+        ]
+    },
+    "CC_3": {
+        "id": 7,
+        "tract": "corpus callosum",
+        "side": "rostral body (premotor)",
+        "type": "commissural",
+        "functional_significance": [
+            "supports communication between the premotor cortices, facilitating motor planning and coordination",
+            "enables the integration of motor processes across hemispheres, essential for bilateral motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the premotor cortices, forming a bidirectional pathway for motor information",
+            "features a curved, compact structure, reflecting its role in coordinating motor functions between hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from traumatic brain injury, leading to deficits in motor planning and coordination",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing motor impairments and gait disturbances"
+        ]
+    },
+    "CC_4": {
+        "id": 8,
+        "tract": "corpus callosum",
+        "side": "anterior midbody (primary motor)",
+        "type": "commissural",
+        "functional_significance": [
+            "supports communication between the primary motor cortices, facilitating voluntary movement",
+            "enables the integration of motor processes across hemispheres, crucial for bilateral motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the primary motor cortices, forming a bidirectional pathway for motor information",
+            "features a thick, compact structure, reflecting its role in coordinating motor functions between hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "susceptible to damage from traumatic brain injury, leading to deficits in voluntary movement and motor control",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing motor impairments and gait disturbances"
+        ]
+    },
+    "CC_5": {
+        "id": 9,
+        "tract": "corpus callosum",
+        "side": "posterior midbody (primary somatosensory)",
+        "type": "commissural",
+        "functional_significance": [
+            "supports communication between the primary somatosensory cortices, facilitating tactile perception",
+            "enables the integration of somatosensory processes across hemispheres, essential for bilateral sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the primary somatosensory cortices, forming a bidirectional pathway for sensory information",
+            "features a thick, compact structure, reflecting its role in coordinating sensory functions between hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from traumatic brain injury, leading to deficits in tactile perception and sensory processing",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory impairments and gait disturbances"
+        ]
+    },
+    "CC_6": {
+        "id": 10,
+        "tract": "corpus callosum",
+        "side": "isthmus",
+        "type": "commissural",
+        "functional_significance": [
+            "supports communication between the parietal cortices, facilitating spatial awareness and attention",
+            "enables the integration of sensory processes across hemispheres, crucial for bilateral sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the parietal cortices, forming a bidirectional pathway for sensory information",
+            "features a thin, curved structure, reflecting its role in coordinating sensory functions between hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "susceptible to damage from traumatic brain injury, leading to deficits in spatial awareness and attention",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory impairments and cognitive deficits"
+        ]
+    },
+    "CC_7": {
+        "id": 11,
+        "tract": "corpus callosum",
+        "side": "splenium",
+        "type": "commissural",
+        "functional_significance": [
+            "supports communication between the occipital cortices, facilitating visual processing and perception",
+            "enables the integration of visual processes across hemispheres, essential for bilateral visual processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the occipital cortices, forming a bidirectional pathway for visual information",
+            "features a thick, curved structure, reflecting its role in coordinating visual functions between hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from traumatic brain injury, leading to deficits in visual processing and perception",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing visual impairments and cognitive deficits"
+        ]
+    },
+    "CC": {
+        "id": 12,
+        "tract": "corpus callosum",
+        "side": "all",
+        "type": "commissural",
+        "functional_significance": [
+            "facilitates communication between the cerebral hemispheres, enabling the integration of cognitive processes",
+            "supports bilateral coordination of sensory and motor functions, essential for complex motor tasks"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the left and right hemispheres, forming a bidirectional pathway for information exchange",
+            "features a dense bundle of fibers, reflecting its role in synchronizing cognitive processes across hemispheres"
+        ],
+        "vulnerability_to_disease": [
+            "susceptible to damage from traumatic brain injury, leading to deficits in cognitive processing and motor coordination",
+            "can be affected by neurodevelopmental disorders, such as agenesis of the corpus callosum, causing cognitive impairments"
+        ]
+    },
+    "CG_left": {
+        "id": 13,
+        "tract": "cingulum",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports memory functions, including episodic memory and spatial navigation",
+            "facilitates communication between the limbic system and prefrontal cortex, crucial for emotional regulation"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the cingulate gyrus to the hippocampus, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating memory and emotion"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from hippocampal lesions, leading to memory impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as Alzheimer's, causing memory decline and emotional disturbances"
+        ]
+    },
+    "CG_right": {
+        "id": 14,
+        "tract": "cingulum",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports memory functions, including episodic memory and spatial navigation",
+            "facilitates communication between the limbic system and prefrontal cortex, crucial for emotional regulation"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the cingulate gyrus to the hippocampus, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating memory and emotion"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from hippocampal lesions, leading to memory impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as Alzheimer's, causing memory decline and emotional disturbances"
+        ]
+    },
+    "CST_left": {
+        "id": 15,
+        "tract": "corticospinal tract",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports voluntary movement, including fine motor control and skilled actions",
+            "enables communication between the motor cortex and spinal cord, crucial for motor coordination"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the motor cortex to the spinal cord, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from spinal cord injury, leading to paralysis and motor deficits",
+            "can be affected by neurodegenerative disorders, such as amyotrophic lateral sclerosis, causing motor impairments"
+        ]
+    },
+    "CST_right": {
+        "id": 16,
+        "tract": "corticospinal tract",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports voluntary movement, including fine motor control and skilled actions",
+            "enables communication between the motor cortex and spinal cord, crucial for motor coordination"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the motor cortex to the spinal cord, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from spinal cord injury, leading to paralysis and motor deficits",
+            "can be affected by neurodegenerative disorders, such as amyotrophic lateral sclerosis, causing motor impairments"
+        ]
+    },
+    "MLF_left": {
+        "id": 17,
+        "tract": "middle longitudinal fascicle",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports visual functions, including eye movements and spatial perception",
+            "facilitates communication between the occipital and frontal lobes, crucial for visual processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the occipital and frontal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating visual information"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "MLF_right": {
+        "id": 18,
+        "tract": "middle longitudinal fascicle",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports visual functions, including eye movements and spatial perception",
+            "facilitates communication between the occipital and frontal lobes, crucial for visual processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the occipital and frontal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating visual information"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "FPT_left": {
+        "id": 19,
+        "tract": "fronto-pontine tract",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including voluntary movement and motor coordination",
+            "enables communication between the frontal lobe and pons, crucial for motor planning"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal lobe to the pons, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from pontine lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as progressive supranuclear palsy, causing motor deficits"
+        ]
+    },
+    "FPT_right": {
+        "id": 20,
+        "tract": "fronto-pontine tract",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including voluntary movement and motor coordination",
+            "enables communication between the frontal lobe and pons, crucial for motor planning"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal lobe to the pons, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from pontine lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as progressive supranuclear palsy, causing motor deficits"
+        ]
+    },
+    "FX_left": {
+        "id": 21,
+        "tract": "fornix",
+        "side": "left",
+        "type": "commissural",
+        "functional_significance": [
+            "supports memory functions, including episodic memory and spatial navigation",
+            "facilitates communication between the hippocampus and other brain regions, crucial for memory consolidation"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the hippocampus to the septal nuclei, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating memory and emotion"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from hippocampal lesions, leading to memory impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as Alzheimer's, causing memory decline and emotional disturbances"
+        ]
+    },
+    "FX_right": {
+        "id": 22,
+        "tract": "fornix",
+        "side": "right",
+        "type": "commissural",
+        "functional_significance": [
+            "supports memory functions, including episodic memory and spatial navigation",
+            "facilitates communication between the hippocampus and other brain regions, crucial for memory consolidation"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the hippocampus to the septal nuclei, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating memory and emotion"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from hippocampal lesions, leading to memory impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as Alzheimer's, causing memory decline and emotional disturbances"
+        ]
+    },
+    "ICP_left": {
+        "id": 23,
+        "tract": "inferior cerebellar peduncle",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including coordination of voluntary movements",
+            "enables communication between the cerebellum and brainstem, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the cerebellum to the brainstem, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from brainstem lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as multiple system atrophy, causing motor deficits"
+        ]
+    },
+    "ICP_right": {
+        "id": 24,
+        "tract": "inferior cerebellar peduncle",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including coordination of voluntary movements",
+            "enables communication between the cerebellum and brainstem, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the cerebellum to the brainstem, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from brainstem lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as multiple system atrophy, causing motor deficits"
+        ]
+    },
+    "IFO_left": {
+        "id": 25,
+        "tract": "inferior occipito-frontal fascicle",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "facilitates communication between the occipital and frontal lobes, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the occipital and frontal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating visual information"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "IFO_right": {
+        "id": 26,
+        "tract": "inferior occipito-frontal fascicle",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "facilitates communication between the occipital and frontal lobes, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the occipital and frontal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating visual information"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "ILF_left": {
+        "id": 27,
+        "tract": "inferior longitudinal fascicle",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "facilitates communication between the occipital and temporal lobes, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the occipital and temporal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating visual information"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "ILF_right": {
+        "id": 28,
+        "tract": "inferior longitudinal fascicle",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "facilitates communication between the occipital and temporal lobes, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the occipital and temporal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating visual information"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "MCP": {
+        "id": 29,
+        "tract": "middle cerebellar peduncle",
+        "side": "NA",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including coordination of voluntary movements",
+            "enables communication between the cerebellum and brainstem, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the cerebellum to the brainstem, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from brainstem lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as multiple system atrophy, causing motor deficits"
+        ]
+    },
+    "OR_left": {
+        "id": 30,
+        "tract": "optic radiation",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "enables communication between the thalamus and visual cortex, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the visual cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating visual functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from thalamic lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as multiple sclerosis, causing visual deficits"
+        ]
+    },
+    "OR_right": {
+        "id": 31,
+        "tract": "optic radiation",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "enables communication between the thalamus and visual cortex, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the visual cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating visual functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from thalamic lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as multiple sclerosis, causing visual deficits"
+        ]
+    },
+    "POPT_left": {
+        "id": 32,
+        "tract": "parieto\u2010occipital pontine",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "enables communication between the parietal lobe and pons, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the parietal lobe to the pons, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating visual functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from pontine lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as progressive supranuclear palsy, causing visual deficits"
+        ]
+    },
+    "POPT_right": {
+        "id": 33,
+        "tract": "parieto\u2010occipital pontine",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "enables communication between the parietal lobe and pons, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the parietal lobe to the pons, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating visual functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from pontine lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative diseases, such as progressive supranuclear palsy, causing visual deficits"
+        ]
+    },
+    "SCP_left": {
+        "id": 34,
+        "tract": "superior cerebellar peduncle",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including coordination of voluntary movements",
+            "enables communication between the cerebellum and brainstem, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the cerebellum to the brainstem, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from brainstem lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as multiple system atrophy, causing motor deficits"
+        ]
+    },
+    "SCP_right": {
+        "id": 35,
+        "tract": "superior cerebellar peduncle",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including coordination of voluntary movements",
+            "enables communication between the cerebellum and brainstem, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the cerebellum to the brainstem, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from brainstem lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as multiple system atrophy, causing motor deficits"
+        ]
+    },
+    "SLF_I_left": {
+        "id": 36,
+        "tract": "superior longitudinal fascicle I",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports language functions, including speech production and comprehension",
+            "facilitates communication between the frontal and temporal lobes, crucial for language processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal and temporal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating language and cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from temporal lesions, leading to language impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as primary progressive aphasia, causing language decline"
+        ]
+    },
+    "SLF_I_right": {
+        "id": 37,
+        "tract": "superior longitudinal fascicle I",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports language functions, including speech production and comprehension",
+            "facilitates communication between the frontal and temporal lobes, crucial for language processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal and temporal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating language and cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from temporal lesions, leading to language impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as primary progressive aphasia, causing language decline"
+        ]
+    },
+    "SLF_II_left": {
+        "id": 38,
+        "tract": "superior longitudinal fascicle II",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports language functions, including speech production and comprehension",
+            "facilitates communication between the frontal and parietal lobes, crucial for language processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal and parietal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating language and cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from parietal lesions, leading to language impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as primary progressive aphasia, causing language decline"
+        ]
+    },
+    "SLF_II_right": {
+        "id": 39,
+        "tract": "superior longitudinal fascicle II",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports language functions, including speech production and comprehension",
+            "facilitates communication between the frontal and parietal lobes, crucial for language processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal and parietal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating language and cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from parietal lesions, leading to language impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as primary progressive aphasia, causing language decline"
+        ]
+    },
+    "SLF_III_left": {
+        "id": 40,
+        "tract": "superior longitudinal fascicle III",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports language functions, including speech production and comprehension",
+            "facilitates communication between the frontal and occipital lobes, crucial for language processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal and occipital lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating language and cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital lesions, leading to language impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as primary progressive aphasia, causing language decline"
+        ]
+    },
+    "SLF_III_right": {
+        "id": 41,
+        "tract": "superior longitudinal fascicle III",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports language functions, including speech production and comprehension",
+            "facilitates communication between the frontal and occipital lobes, crucial for language processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal and occipital lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating language and cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital lesions, leading to language impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as primary progressive aphasia, causing language decline"
+        ]
+    },
+    "STR_left": {
+        "id": 42,
+        "tract": "superior thalamic radiation",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the thalamus and sensory cortices, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the sensory cortices, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from thalamic lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "STR_right": {
+        "id": 43,
+        "tract": "superior thalamic radiation",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the thalamus and sensory cortices, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the sensory cortices, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from thalamic lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "UF_left": {
+        "id": 44,
+        "tract": "uncinate fasciculus",
+        "side": "left",
+        "type": "association",
+        "functional_significance": [
+            "supports language functions, including semantic processing and emotional regulation",
+            "facilitates communication between the frontal and temporal lobes, crucial for language comprehension"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal and temporal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating language and emotion"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from temporal lesions, leading to language impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as primary progressive aphasia, causing language decline"
+        ]
+    },
+    "UF_right": {
+        "id": 45,
+        "tract": "uncinate fasciculus",
+        "side": "right",
+        "type": "association",
+        "functional_significance": [
+            "supports language functions, including semantic processing and emotional regulation",
+            "facilitates communication between the frontal and temporal lobes, crucial for language comprehension"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the frontal and temporal lobes, forming a bidirectional pathway",
+            "features a curved bundle of fibers, reflecting its role in integrating language and emotion"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from temporal lesions, leading to language impairments and cognitive deficits",
+            "can be affected by neurodegenerative diseases, such as primary progressive aphasia, causing language decline"
+        ]
+    },
+    "T_PREF_left": {
+        "id": 46,
+        "tract": "thalamo-prefrontal",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports cognitive functions, including executive control and decision-making",
+            "enables communication between the thalamus and prefrontal cortex, crucial for cognitive processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the prefrontal cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from prefrontal lesions, leading to cognitive impairments and executive dysfunction",
+            "can be affected by neurodegenerative disorders, such as frontotemporal dementia, causing cognitive decline"
+        ]
+    },
+    "T_PREF_right": {
+        "id": 47,
+        "tract": "thalamo-prefrontal",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports cognitive functions, including executive control and decision-making",
+            "enables communication between the thalamus and prefrontal cortex, crucial for cognitive processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the prefrontal cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from prefrontal lesions, leading to cognitive impairments and executive dysfunction",
+            "can be affected by neurodegenerative disorders, such as frontotemporal dementia, causing cognitive decline"
+        ]
+    },
+    "T_PREM_left": {
+        "id": 48,
+        "tract": "thalamo-premotor",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including motor planning and coordination",
+            "enables communication between the thalamus and premotor cortex, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the premotor cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from premotor lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as progressive supranuclear palsy, causing motor deficits"
+        ]
+    },
+    "T_PREM_right": {
+        "id": 49,
+        "tract": "thalamo-premotor",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including motor planning and coordination",
+            "enables communication between the thalamus and premotor cortex, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the premotor cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from premotor lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as progressive supranuclear palsy, causing motor deficits"
+        ]
+    },
+    "T_PREC_left": {
+        "id": 50,
+        "tract": "thalamo-precentral",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including voluntary movement and motor coordination",
+            "enables communication between the thalamus and motor cortex, crucial for motor planning"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the motor cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from motor cortex lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as amyotrophic lateral sclerosis, causing motor deficits"
+        ]
+    },
+    "T_PREC_right": {
+        "id": 51,
+        "tract": "thalamo-precentral",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including voluntary movement and motor coordination",
+            "enables communication between the thalamus and motor cortex, crucial for motor planning"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the motor cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from motor cortex lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as amyotrophic lateral sclerosis, causing motor deficits"
+        ]
+    },
+    "T_POSTC_left": {
+        "id": 52,
+        "tract": "thalamo-postcentral",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the thalamus and somatosensory cortex, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the somatosensory cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from somatosensory cortex lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "T_POSTC_right": {
+        "id": 53,
+        "tract": "thalamo-postcentral",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the thalamus and somatosensory cortex, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the somatosensory cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from somatosensory cortex lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "T_PAR_left": {
+        "id": 54,
+        "tract": "thalamo-parietal",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the thalamus and parietal cortex, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the parietal cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from parietal cortex lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "T_PAR_right": {
+        "id": 55,
+        "tract": "thalamo-parietal",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the thalamus and parietal cortex, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the parietal cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from parietal cortex lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "T_OCC_left": {
+        "id": 56,
+        "tract": "thalamo-occipital",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "enables communication between the thalamus and occipital cortex, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the occipital cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating visual functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital cortex lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "T_OCC_right": {
+        "id": 57,
+        "tract": "thalamo-occipital",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "enables communication between the thalamus and occipital cortex, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the thalamus to the occipital cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating visual functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital cortex lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "ST_FO_left": {
+        "id": 58,
+        "tract": "striato-fronto-orbital",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports cognitive functions, including decision-making and emotional regulation",
+            "enables communication between the striatum and orbital cortex, crucial for cognitive control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the orbital cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from orbital cortex lesions, leading to cognitive impairments and emotional dysregulation",
+            "can be affected by neurodegenerative disorders, such as frontotemporal dementia, causing cognitive decline"
+        ]
+    },
+    "ST_FO_right": {
+        "id": 59,
+        "tract": "striato-fronto-orbital",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports cognitive functions, including decision-making and emotional regulation",
+            "enables communication between the striatum and orbital cortex, crucial for cognitive control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the orbital cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from orbital cortex lesions, leading to cognitive impairments and emotional dysregulation",
+            "can be affected by neurodegenerative disorders, such as frontotemporal dementia, causing cognitive decline"
+        ]
+    },
+    "ST_PREF_left": {
+        "id": 60,
+        "tract": "striato-prefrontal",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports cognitive functions, including executive control and decision-making",
+            "enables communication between the striatum and prefrontal cortex, crucial for cognitive processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the prefrontal cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from prefrontal lesions, leading to cognitive impairments and executive dysfunction",
+            "can be affected by neurodegenerative disorders, such as frontotemporal dementia, causing cognitive decline"
+        ]
+    },
+    "ST_PREF_right": {
+        "id": 61,
+        "tract": "striato-prefrontal",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports cognitive functions, including executive control and decision-making",
+            "enables communication between the striatum and prefrontal cortex, crucial for cognitive processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the prefrontal cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating cognitive functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from prefrontal lesions, leading to cognitive impairments and executive dysfunction",
+            "can be affected by neurodegenerative disorders, such as frontotemporal dementia, causing cognitive decline"
+        ]
+    },
+    "ST_PREM_left": {
+        "id": 62,
+        "tract": "striato-premotor",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including motor planning and coordination",
+            "enables communication between the striatum and premotor cortex, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the premotor cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from premotor lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as progressive supranuclear palsy, causing motor deficits"
+        ]
+    },
+    "ST_PREM_right": {
+        "id": 63,
+        "tract": "striato-premotor",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including motor planning and coordination",
+            "enables communication between the striatum and premotor cortex, crucial for motor control"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the premotor cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from premotor lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as progressive supranuclear palsy, causing motor deficits"
+        ]
+    },
+    "ST_PREC_left": {
+        "id": 64,
+        "tract": "striato-precentral",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including voluntary movement and motor coordination",
+            "enables communication between the striatum and motor cortex, crucial for motor planning"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the motor cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from motor cortex lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as amyotrophic lateral sclerosis, causing motor deficits"
+        ]
+    },
+    "ST_PREC_right": {
+        "id": 65,
+        "tract": "striato-precentral",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports motor functions, including voluntary movement and motor coordination",
+            "enables communication between the striatum and motor cortex, crucial for motor planning"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the motor cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating motor functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from motor cortex lesions, leading to motor impairments and gait disturbances",
+            "can be affected by neurodegenerative disorders, such as amyotrophic lateral sclerosis, causing motor deficits"
+        ]
+    },
+    "ST_POSTC_left": {
+        "id": 66,
+        "tract": "striato-postcentral",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the striatum and somatosensory cortex, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the somatosensory cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from somatosensory cortex lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "ST_POSTC_right": {
+        "id": 67,
+        "tract": "striato-postcentral",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the striatum and somatosensory cortex, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the somatosensory cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from somatosensory cortex lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "ST_PAR_left": {
+        "id": 68,
+        "tract": "striato-parietal",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the striatum and parietal cortex, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the parietal cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from parietal cortex lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "ST_PAR_right": {
+        "id": 69,
+        "tract": "striato-parietal",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports sensory functions, including tactile perception and spatial awareness",
+            "enables communication between the striatum and parietal cortex, crucial for sensory processing"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the parietal cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating sensory functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from parietal cortex lesions, leading to sensory impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as multiple sclerosis, causing sensory deficits"
+        ]
+    },
+    "ST_OCC_left": {
+        "id": 70,
+        "tract": "striato-occipital",
+        "side": "left",
+        "type": "projection",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "enables communication between the striatum and occipital cortex, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the occipital cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating visual functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital cortex lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    },
+    "ST_OCC_right": {
+        "id": 71,
+        "tract": "striato-occipital",
+        "side": "right",
+        "type": "projection",
+        "functional_significance": [
+            "supports visual functions, including object recognition and spatial processing",
+            "enables communication between the striatum and occipital cortex, crucial for visual perception"
+        ],
+        "structural_characteristics": [
+            "comprises axons connecting the striatum to the occipital cortex, forming a unidirectional pathway",
+            "features a dense bundle of fibers, reflecting its role in coordinating visual functions"
+        ],
+        "vulnerability_to_disease": [
+            "vulnerable to damage from occipital cortex lesions, leading to visual impairments and spatial neglect",
+            "can be affected by neurodegenerative disorders, such as posterior cortical atrophy, causing visual deficits"
+        ]
+    }
+}

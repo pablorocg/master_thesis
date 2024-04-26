@@ -19,15 +19,6 @@ class Graph_generator:
 
         self.ds_handler = ds_handler
         
-    
-    # def min_max_normalization(self, data:torch.tensor) -> torch.tensor:
-    #     """
-    #     Normaliza los valores de una imagen entre 0 y 1.
-    #     """
-    #     return (data - torch.min(data)) / (torch.max(data) - torch.min(data))
-    
-    
-        
     def generate_graphs_from_subject(self, subject_dict:dict) -> Data:
         """
         Genera un grafo por cada fibra de una imagen T1w.
@@ -40,7 +31,7 @@ class Graph_generator:
         subject_graphs = []
         for tract in tracts:
             text_label = tract.stem.split("__")[1].split("_m")[0]# Obtener el label de la fibra
-            label = ds_handler.get_label_from_tract(text_label)
+            label = self.ds_handler.get_label_from_tract(text_label)
             label = torch.tensor(label, dtype = torch.long)
             
             tractogram = load_trk(str(tract), 'same', bbox_valid_check=False)
@@ -75,10 +66,17 @@ class Graph_generator:
 
 
 if __name__ == "__main__":
-    ds_handler = Tractoinferno_handler(tractoinferno_path = "dataset/tractoinferno_preprocessed_mni", scope="testset")
-    print(ds_handler.get_data())
+    
+    trainset_handler = Tractoinferno_handler(path = "/app/dataset/Tractoinferno/derivatives", scope = "trainset")
+    validset_handler = Tractoinferno_handler(path = "/app/dataset/Tractoinferno/derivatives", scope = "validset")
+    
+    train_data = trainset_handler.get_data()
+    valid_data = validset_handler.get_data()
 
-    graph_generator = Graph_generator(output_dir = "dataset/tractoinferno_graphs", ds_handler = ds_handler)
-    graph_generator.generate_graphs_from_subjects(ds_handler.get_data())
+    graph_generator = Graph_generator(output_dir = "/app/dataset/Tractoinferno/tractoinferno_graphs", ds_handler = trainset_handler)
+    graph_generator.generate_graphs_from_subjects(trainset_handler.get_data())
+    graph_generator.generate_graphs_from_subjects(validset_handler.get_data())
+
+    
 
 

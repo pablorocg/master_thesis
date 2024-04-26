@@ -138,7 +138,7 @@ class GCN_Encoder(nn.Module):
         for layer in self.hidden_blocks:
             x = layer(x, edge_index)
         x = self.output_block(x, edge_index)
-        return global_mean_pool(x, batch)
+        return global_mean_pool(x, batch) # (batch_size, out_channels)
 
 
 
