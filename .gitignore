@@ -8,3 +8,4 @@ tractoinferno/*
 .neptune/
 ./embeddings_logs/*
 weights/*
+dataset/*
