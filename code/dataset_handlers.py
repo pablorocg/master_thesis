@@ -580,9 +580,7 @@ if __name__ == "__main__":
     trinf_paths = trinf_handler.get_data()
     hcp_paths = hcp_handler.get_data()
 
-    # print(trinf_paths, len(trinf_paths))
-    print(hcp_paths[0], len(hcp_paths))
-
-    
+    print(trinf_paths, len(trinf_paths))
+    print(hcp_paths, len(hcp_paths))
 
    

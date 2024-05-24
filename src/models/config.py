@@ -4,9 +4,9 @@ from tabulate import tabulate
 class CFG:
     
     # Configuración general
-    train_epochs = 1
+    train_epochs = 35
     train_batch_size = 1024
-    train_num_workers = 4
+    train_num_workers = 2
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     learning_rate = 1e-3
     optimizer_weight_decay = 1e-4# 1e-3

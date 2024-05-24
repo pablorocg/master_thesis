@@ -18,10 +18,8 @@ class MaxMinNormalization(BaseTransform):
             """
             # 76.03170776367188, 77.9359130859375, 88.72427368164062
             # -73.90082550048828, -112.23554992675781, -79.38320922851562
-            self.max_values = max_values if max_values is not None else torch.tensor([74.99879455566406, 82.36431884765625, 97.47947692871094], 
-                                                                                      dtype=torch.float)
-            self.min_values = min_values if min_values is not None else torch.tensor([-76.92510986328125, -120.4773941040039, -81.27867126464844], 
-                                                                                      dtype=torch.float)
+            self.max_values = max_values if max_values is not None else torch.tensor([74.99879455566406, 82.36431884765625, 97.47947692871094], dtype=torch.float)
+            self.min_values = min_values if min_values is not None else torch.tensor([-76.92510986328125, -120.4773941040039, -81.27867126464844], dtype=torch.float)
 
         def __call__(self, data: Data) -> Data:
             """
@@ -63,7 +61,7 @@ class FiberGraphDataset(Dataset):
         # Quedarse con los primeros 100000 grafos
         graphs = graphs[:100000]
         # # Seleccionar 5000 grafos por clase para reducir el tamaño del dataset
-        # graphs = self.sample_graphs_by_class(graphs, 1500)
+        graphs = self.sample_graphs_by_class(graphs, 1500)
         
         # # Mezclar los grafos y convertirlos en un DataBatch
         # random.shuffle(graphs)
@@ -247,6 +245,3 @@ if __name__ == '__main__':
 
     s0 = dataset[0]
     print(s0)
-    
-
-
