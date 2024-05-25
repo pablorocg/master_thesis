@@ -21,10 +21,10 @@ from encoders import SiameseGraphNetwork, GCNEncoder, ProjectionHead, Classifier
 
 from streamline_datasets import (MaxMinNormalization, 
                                  StreamlineTestDataset, collate_test_ds, 
-                                 StreamlineTripletDataset, collate_triplet_ds,
+                                 StreamlineSimCLRDataset, collate_simclr_ds,
                                  fill_tracts_ds)
 
-from loss_functions import (MultiTaskTripletLoss, TripletLoss)
+from loss_functions import (InfoNCELoss)
 import neptune
 from torch.utils.tensorboard import SummaryWriter
 # Comando para lanzar tensorboard en el navegador local a traves del puerto 8888 reenviado por ssh:
@@ -140,8 +140,7 @@ model = SiameseGraphNetwork(
 model = torch.compile(model, dynamic=True)
 
 # Definir loss function, optimizador y scheduler
-criterion = MultiTaskTripletLoss(classification_weight = cfg.classification_weight,
-                                    margin = cfg.margin).cuda()
+criterion = InfoNCELoss(temperature = 0.5).cuda()
 
 optimizer = torch.optim.Adam(model.parameters(), 
                              lr = cfg.learning_rate)
@@ -170,35 +169,41 @@ for epoch in range(cfg.max_epochs):
 
     for idx_suj, subject in enumerate(train_data):# Iterar sobre los sujetos de entrenamiento
 
-        # Crear el dataset y el dataloader
-        train_ds = StreamlineTripletDataset(subject, handler, 
+        # Crear el dataset y el dataloader StreamlineSimCLRDataset, collate_simclr_ds
+        train_ds = StreamlineSimCLRDataset(subject, handler, 
                                             transform = MaxMinNormalization())
         
         train_dl = DataLoader(train_ds, batch_size = cfg.batch_size, 
                               shuffle = True, num_workers = 4,
-                              collate_fn = collate_triplet_ds)
+                              collate_fn = collate_simclr_ds)
         
         # Bucle de entrenamiento del modelo
         prog_bar = tqdm(train_dl, total = cfg.max_batches_per_subject)
 
-        for i, (graph_anch, graph_pos, graph_neg) in enumerate(prog_bar):
+        for i, (graph_pos_1, graph_pos_2, graph_neg_1, graph_neg_2) in enumerate(prog_bar):
 
-            # Enviar a la gpu
-            graph_anch, graph_pos, graph_neg = graph_anch.to('cuda'), graph_pos.to('cuda'), graph_neg.to('cuda')
+            # Obtener las etiquetas
+            labels_pos_1 = graph_pos_1.y
+            labels_pos_2 = graph_pos_2.y
+            labels_neg_1 = graph_neg_1.y
+            labels_neg_2 = graph_neg_2.y
 
             # Reiniciar los gradientes
             optimizer.zero_grad()
 
             # Forward pass
-            embedding_1, pred_1 = model(graph_anch)
-            embedding_2, pred_2 = model(graph_pos)
-            embedding_3, pred_3 = model(graph_neg)
+            embedding_pos_1, _ = model(graph_pos_1)
+            embedding_pos_2, _ = model(graph_pos_2)
+            embedding_neg_1, _ = model(graph_neg_1)
+            embedding_neg_2, _ = model(graph_neg_2)
 
-            # Calcular la pérdida
-            loss = criterion(embedding_1, embedding_2, embedding_3, 
-                             pred_1, pred_2, pred_3, 
-                             graph_anch.y, graph_pos.y, graph_neg.y)
-            
+            # Concatenar los embeddings y las etiquetas
+            embeddings = torch.cat([embedding_pos_1, embedding_pos_2, embedding_neg_1, embedding_neg_2], dim=0)
+            labels = torch.cat([labels_pos_1, labels_pos_2, labels_neg_1, labels_neg_2], dim=0)
+
+            # Calcular la pérdida InfoNCE
+            loss = criterion(embeddings, labels)
+
             # Backward pass
             loss.backward()
 
@@ -235,6 +240,8 @@ for epoch in range(cfg.max_epochs):
                     run["train/subject/acc"].log(subj_accuracy_train.compute().item())
                     run["train/subject/f1"].log(subj_f1_train.compute().item())
                     run["train/subject/auroc"].log(subj_auroc_train.compute().item())
+                    # Hacer log del learning rate
+                    run["train/learning_rate"].log(optimizer.get_last_lr()[0])
                 
                 # Reiniciar las métricas
                 subj_accuracy_train.reset()
