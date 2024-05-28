@@ -175,6 +175,11 @@ class MultiTaskTripletLoss(nn.Module):
                 x_anchor, x_positive, x_negative, 
                 class_anchor, class_positive, class_negative, 
                 target_anchor, target_positive, target_negative):
+        
+        # Verificar dimensiones de los embeddings
+        assert x_anchor.size() == x_positive.size() == x_negative.size(), "Los embeddings deben tener las mismas dimensiones"
+        assert class_anchor.size() == class_positive.size() == class_negative.size(), "Las clases deben tener las mismas dimensiones"
+        
         # Calcular las distancias de disimilitud
         D_p = F.pairwise_distance(x_anchor, x_positive, p=2)
         D_n = F.pairwise_distance(x_anchor, x_negative, p=2)

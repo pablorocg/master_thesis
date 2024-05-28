@@ -1,29 +1,18 @@
-from dataset_handlers import Tractoinferno_handler, HCP_handler
-import numpy as np
-import random
-from dipy.io.streamline import load_trk
-import pathlib2 as pathlib
-import torch
-from torch.utils.data import Dataset
-from torch_geometric.data import Data, Batch
-
-
-from torch_geometric.data import Data
-
-import torch.nn.functional as F
-
-import torch.optim as optim
-from tqdm import tqdm
-# Importar BaseTransform para normalización
-from torch_geometric.transforms import BaseTransform
+"""
+Fichero con clases y funciones para manejar datasets de tractografías adaptados a las diferentes arquitecturas.
+""" 
 
 from collections import defaultdict
+from dipy.io.streamline import load_trk
+import pathlib2 as pathlib
+import random
 import torch
 from torch.utils.data import Dataset
 from torch_geometric.data import Data, Batch
-import random
-import numpy as np
-from dipy.io.streamline import load_trk
+from torch_geometric.data import Data
+from torch_geometric.transforms import BaseTransform
+
+
 
 
 
@@ -187,6 +176,9 @@ class StreamlineTestDataset(Dataset):
             for tract in self.subject["tracts"]
         }
 
+        # Ordenar el diccionario por clave
+        self.streamlines_by_tract = dict(sorted(self.streamlines_by_tract.items()))
+
     def __len__(self):
         return sum(len(streamlines) for streamlines in self.streamlines_by_tract.values())
 
@@ -204,18 +196,39 @@ class StreamlineTestDataset(Dataset):
 
 def collate_test_ds(data_list):
     return Batch.from_data_list(data_list)
+#=======================================TEST DATASET=========================================================
+class TestDataset(Dataset):
+    def __init__(self, trk_file, ds_handler, transform=None):
+
+        self.trk_file = load_trk(str(trk_file), 'same', bbox_valid_check=False)
+        
+        self.streamlines = self.trk_file.streamlines
+        self.label = ds_handler.get_label_from_tract(trk_file.stem)
+
+    def __len__(self):
+        return len(self.streamlines)
+    
+    def __getitem__(self, idx):
+        return create_graph(self.streamlines[idx], self.label)
 
 #================================================TRANSFORMS=====================================================
 class MaxMinNormalization(BaseTransform):
-    def __init__(self, max_values=None, min_values=None):
+    def __init__(self, dataset=None):
         """
         Initialize the normalization transform with optional max and min values.
         If not provided, they should be computed from the dataset.
         """
-        self.max_values = max_values if max_values is not None else torch.tensor([74.99879455566406, 82.36431884765625, 97.47947692871094], 
-                                                                                    dtype=torch.float)
-        self.min_values = min_values if min_values is not None else torch.tensor([-76.92510986328125, -120.4773941040039, -81.27867126464844], 
-                                                                                    dtype=torch.float)
+        if dataset == "HCP_105" or dataset == "Tractoinferno":# Normalizacion para datos MNI-152
+
+            self.max_values = torch.tensor([74.99879455566406, 82.36431884765625, 97.47947692871094], dtype=torch.float)
+            self.min_values = torch.tensor([-76.92510986328125, -120.4773941040039, -81.27867126464844], dtype=torch.float)
+
+        elif dataset == "FiberCup":
+            self.max_values = torch.tensor([486.051, 454.08902, 25.558952], dtype=torch.float)
+            self.min_values = torch.tensor([72.0, 47.815502, -6.408,], dtype=torch.float)
+        else:
+            # Lanzar error
+            raise ValueError("Dataset no reconocido")
 
     def __call__(self, data: Data) -> Data:
         """

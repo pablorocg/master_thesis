@@ -1,40 +1,46 @@
+# Modelo de clasificación de grafos de tractografías cerebrales sin contrastive loss
+#
+#
+#
+#
+#
+#
 
+
+from dataset_handlers import Tractoinferno_handler, HCP_handler
 import numpy as np
 import random
+from dipy.io.streamline import load_trk
+import pathlib2 as pathlib
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
+from torch_geometric.data import Data, Batch
 import torch.nn as nn
+# Importar categorical crossentropy loss
+from torch.nn import CrossEntropyLoss
+
+from torch_geometric.data import Data
+from torch.nn import ModuleList
 import torch.nn.functional as F
 from torchmetrics.classification import (MulticlassAccuracy, 
                                          MulticlassF1Score,
-                                         MulticlassAUROC,
-                                         MulticlassConfusionMatrix)
+                                         MulticlassAUROC)
 import torch.optim as optim
 from tqdm import tqdm
 
-from dataset_handlers import (HCPHandler, 
-                            TractoinfernoHandler,
-                            FiberCupHandler)
+from encoders import SiameseGraphNetwork, GCNEncoder, ProjectionHead, ClassifierHead
 
-from streamline_datasets import (MaxMinNormalization,
-                                StreamlineTestDataset, collate_test_ds,
-                                StreamlineTripletDataset, collate_triplet_ds,
-                                fill_tracts_ds)
-
-from encoders import (SiameseGraphNetwork, GCNEncoder, GATEncoder,
-                                ProjectionHead, ClassifierHead)
-from hgp_sl_model import HGPSLEncoder
+from streamline_datasets import (MaxMinNormalization, 
+                                 StreamlineTestDataset, collate_test_ds, 
+                                 StreamlineTripletDataset, collate_triplet_ds,
+                                 fill_tracts_ds)
 
 from loss_functions import (MultiTaskTripletLoss, TripletLoss)
-
 import neptune
 from torch.utils.tensorboard import SummaryWriter
 # Comando para lanzar tensorboard en el navegador local a traves del puerto 8888 reenviado por ssh:
 # tensorboard --logdir=runs/embedding_visualization --host 0.0.0.0 --port 8888
 from collections import defaultdict
-import time
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 # Habilitar TensorFloat32 para una mejor performance en operaciones de multiplicación de matrices
@@ -50,7 +56,8 @@ if log:
         api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI1ODA0YzA2NS04MjczLTQyNzItOGE5Mi05ZmI5YjZkMmY3MDcifQ==",
     )
 
-    
+    # Inicializar el SummaryWriter para TensorBoard
+    writer = SummaryWriter(log_dir="runs/embedding_visualization")
     
 
 
@@ -59,38 +66,30 @@ if log:
 class CFG:
     def __init__(self):
         self.seed = 42
-        self.max_epochs = 4
-        self.batch_size = 16
+        self.max_epochs = 1
+        self.batch_size = 128
         self.learning_rate = 0.005
-        self.max_batches_per_subject = 200
-        self.classification_weight = 0.6
+        self.max_batches_per_subject = 500
+        self.classification_weight = 0.5
         self.margin = 1.25
-        self.encoder = "GCN" # Las opciones son "GAT" o "GCN" o "HGPSL"
-        self.optimizer = "AdamW"
 
-        self.dataset = "FiberCup" # "Tractoinferno o "FiberCup" o "HCP_105"
+        self.dataset = "Tractoinferno"#"HCP_105"
 
         if self.dataset == "HCP_105":
             self.ds_path = "/app/dataset/HCP_105"
-            self.n_classes = 71 # 72 tractos o 71 tractos sin CC
+            self.n_classes = 72
 
         elif self.dataset == "Tractoinferno":
             self.ds_path = "/app/dataset/Tractoinferno/tractoinferno_preprocessed_mni"
             self.n_classes = 32
-        
-        elif self.dataset == "FiberCup":
-            self.ds_path = "/app/dataset/Fibercup"
-            self.n_classes = 7
 
-        self.embedding_projection_dim = 32
+        self.embedding_projection_dim = 128
+        self.optimizer = "AdamW"
         
     
 cfg = CFG()
 
 if log:
-    # Inicializar el SummaryWriter para TensorBoard
-    writer = SummaryWriter(log_dir=f"runs/{cfg.dataset}_embedding_visualization", filename_suffix=f"{time.time()}")
-    
     run["config/dataset"] = cfg.dataset
     run["config/seed"] = cfg.seed
     run["config/max_epochs"] = cfg.max_epochs
@@ -99,10 +98,7 @@ if log:
     run["config/max_batches_per_subject"] = cfg.max_batches_per_subject
     run["config/n_classes"] = cfg.n_classes
     run["config/embedding_projection_dim"] = cfg.embedding_projection_dim
-    run["config/classification_weight"] = cfg.classification_weight
-    run["config/margin"] = cfg.margin
-    run["config/encoder"] = cfg.encoder
-    run["config/optimizer"] = cfg.optimizer
+
 
 
 def seed_everything(seed):
@@ -114,77 +110,40 @@ def seed_everything(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-
 # Establecer la semilla
 seed_everything(cfg.seed)
 
-
 # Cargar las rutas de los sujetos de entrenamiento, validación y test
 if cfg.dataset == "HCP_105":
-    handler = HCPHandler(path = cfg.ds_path, scope = "trainset")
+    handler = HCP_handler(path = cfg.ds_path, scope = "trainset")
     train_data = handler.get_data()
 
-    handler = HCPHandler(path = cfg.ds_path, scope = "validset")
+    handler = HCP_handler(path = cfg.ds_path, scope = "validset")
     valid_data = handler.get_data()
 
-    handler = HCPHandler(path = cfg.ds_path, scope = "testset")
+    handler = HCP_handler(path = cfg.ds_path, scope = "testset")
     test_data = handler.get_data()
 
 elif cfg.dataset == "Tractoinferno":
-    handler = TractoinfernoHandler(path = cfg.ds_path, scope = "trainset")
+    handler = Tractoinferno_handler(path = cfg.ds_path, scope = "trainset")
     train_data = handler.get_data()
     train_data = fill_tracts_ds(train_data)# Hacer que todos los sujetos tengan el mismo número de tractos 
 
-    handler = TractoinfernoHandler(path = cfg.ds_path, scope = "validset")
+    handler = Tractoinferno_handler(path = cfg.ds_path, scope = "validset")
     valid_data = handler.get_data()
 
-    handler = TractoinfernoHandler(path = cfg.ds_path, scope = "testset")
+    handler = Tractoinferno_handler(path = cfg.ds_path, scope = "testset")
     test_data = handler.get_data()
-
-elif cfg.dataset == "FiberCup":
-    handler = FiberCupHandler(path = cfg.ds_path, scope = "trainset")
-    train_data = handler.get_data()
-
-    handler = FiberCupHandler(path = cfg.ds_path, scope = "validset")
-    valid_data = handler.get_data()
-
-    handler = FiberCupHandler(path = cfg.ds_path, scope = "testset")
-    test_data = handler.get_data()
-
-
 
 
 # Crear el modelo, la función de pérdida y el optimizador
-if cfg.encoder == "GAT":# Graph Attention Network
-    encoder = GATEncoder(in_channels = 3, 
-                         hidden_channels = 16, 
-                         out_channels = 512)
-
-elif cfg.encoder == "GCN":# Graph Convolutional Network
-    encoder = GCNEncoder(in_channels = 3, 
-                         hidden_dim = 128, 
-                         out_channels = 128, 
-                         dropout = 0.15, 
-                         n_hidden_blocks = 2)
-    
-elif cfg.encoder == "HGPSL":# Hierarchical Graph Pooling with Structure Learning
-    encoder = HGPSLEncoder(num_features = 3, 
-                           nhid = 128, 
-                           emb_dim = cfg.embedding_projection_dim, 
-                           pooling_ratio = 0.5, 
-                           dropout_ratio = 0.0, 
-                           sample_neighbor = True, 
-                           sparse_attention = True, 
-                           structure_learning = True, 
-                           lamb = 1.0)
-
-
-
-
-
 model = SiameseGraphNetwork(
-    encoder = encoder,
-    projection_head = ProjectionHead(embedding_dim = 128, 
+    encoder = GCNEncoder(in_channels = 3, 
+                         hidden_dim = 512, 
+                         out_channels = 512, 
+                         dropout = 0.15, 
+                         n_hidden_blocks = 4),
+    projection_head = ProjectionHead(embedding_dim = 512, 
                                      projection_dim = cfg.embedding_projection_dim),
     classifier = ClassifierHead(projection_dim = cfg.embedding_projection_dim, 
                                 n_classes = cfg.n_classes)
@@ -193,30 +152,26 @@ model = SiameseGraphNetwork(
 # Compile the model into an optimized version:
 model = torch.compile(model, dynamic=True)
 
-
-
-
-
-
 # Definir loss function, optimizador y scheduler
-criterion = MultiTaskTripletLoss(classification_weight = cfg.classification_weight,
-                                    margin = cfg.margin).cuda()
+criterion = CrossEntropyLoss().cuda()
 
 
 
+# Seleccionar el optimizador
 if cfg.optimizer == "Adam":
-    optimizer = torch.optim.Adam(model.parameters(), 
-                             lr = cfg.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(),
+                              lr = cfg.learning_rate)
 elif cfg.optimizer == "AdamW":
-    optimizer = torch.optim.AdamW(model.parameters(), 
-                                  lr = cfg.learning_rate,
-                                  weight_decay = 0.01)
+    optimizer = torch.optim.AdamW(model.parameters(),
+                                lr = cfg.learning_rate,
+                                weight_decay = 0.01)
+else:
+    raise ValueError("Invalid optimizer")
+
 
 
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 
                                             step_size = 10, gamma = 0.1)
-
-
 
 
 # Crear las métricas con torchmetrics
@@ -229,8 +184,6 @@ subj_f1_val = MulticlassF1Score(num_classes = cfg.n_classes, average='macro').cu
 subj_auroc_train = MulticlassAUROC(num_classes = cfg.n_classes).cuda()
 subj_auroc_val = MulticlassAUROC(num_classes = cfg.n_classes).cuda()
 
-subj_confusion_matrix = MulticlassConfusionMatrix(num_classes = cfg.n_classes).cuda()
-
 
 
 
@@ -242,33 +195,31 @@ for epoch in range(cfg.max_epochs):
     for idx_suj, subject in enumerate(train_data):# Iterar sobre los sujetos de entrenamiento
 
         # Crear el dataset y el dataloader
-        train_ds = StreamlineTripletDataset(subject, handler, 
-                                            transform = MaxMinNormalization(dataset=cfg.dataset))
+        train_ds = StreamlineTestDataset(subject, handler, 
+                                        transform = MaxMinNormalization())
         
-        train_dl = DataLoader(train_ds, batch_size = cfg.batch_size, 
+        train_dl = DataLoader(train_ds, batch_size = cfg.batch_size * 4, 
                               shuffle = True, num_workers = 4,
-                              collate_fn = collate_triplet_ds)
+                              collate_fn = collate_test_ds)
+        
         
         # Bucle de entrenamiento del modelo
         prog_bar = tqdm(train_dl, total = cfg.max_batches_per_subject)
 
-        for i, (graph_anch, graph_pos, graph_neg) in enumerate(prog_bar):
+        for i, graph in enumerate(prog_bar):
 
             # Enviar a la gpu
-            graph_anch, graph_pos, graph_neg = graph_anch.to('cuda'), graph_pos.to('cuda'), graph_neg.to('cuda')
+            graph = graph.cuda()
+            target = graph.y
 
             # Reiniciar los gradientes
             optimizer.zero_grad()
 
             # Forward pass
-            embedding_1, pred_1 = model(graph_anch)# Batch size necesario para calcular la media de los embeddings
-            embedding_2, pred_2 = model(graph_pos)
-            embedding_3, pred_3 = model(graph_neg)
+            embedding, pred = model(graph)
 
             # Calcular la pérdida
-            loss = criterion(embedding_1, embedding_2, embedding_3, 
-                             pred_1, pred_2, pred_3, 
-                             graph_anch.y, graph_pos.y, graph_neg.y)
+            loss = criterion(pred, target)
             
             # Backward pass
             loss.backward()
@@ -276,17 +227,13 @@ for epoch in range(cfg.max_epochs):
             # Actualizar los pesos
             optimizer.step()
 
-            # Concatenar las predicciones de los dos grafos
-            preds = torch.cat((pred_1, pred_2, pred_3))
-
-            # Concatenar las etiquetas de los dos grafos
-            targets = torch.cat((graph_anch.y, graph_pos.y, graph_neg.y))
+            
 
 
             # calcular métricas de entrenamiento
-            subj_accuracy_train.update(preds, targets)
-            subj_f1_train.update(preds, targets)
-            subj_auroc_train.update(preds, targets)
+            subj_accuracy_train.update(pred, target)
+            subj_f1_train.update(pred, target)
+            subj_auroc_train.update(pred, target)
 
 
             # Mostar métricas de entrenamiento cada 100 batches
@@ -323,10 +270,10 @@ for epoch in range(cfg.max_epochs):
     
     for idx_val, subject in enumerate(valid_data):
         val_ds = StreamlineTestDataset(subject, handler, 
-                                        transform = MaxMinNormalization(dataset = cfg.dataset))
+                                        transform = MaxMinNormalization())
         
-        val_dl = DataLoader(val_ds, batch_size = cfg.batch_size , 
-                              shuffle = False, num_workers = 1,
+        val_dl = DataLoader(val_ds, batch_size = cfg.batch_size * 4, 
+                              shuffle = False, num_workers = 4,
                               collate_fn = collate_test_ds)
         
         # Diccionario para guardar los embeddings de los grafos por clase cuyas claves son las etiquetas 0 - 71
@@ -343,13 +290,12 @@ for epoch in range(cfg.max_epochs):
                 target = graph.y
 
                 # Forward pass
-                embedding, pred = model(graph)# Batch size necesario para calcular la media de los embeddings
+                embedding, pred = model(graph)
 
                 # Calcular métricas de validación
                 subj_accuracy_val.update(pred, target)
                 subj_f1_val.update(pred, target)
                 subj_auroc_val.update(pred, target)
-                subj_confusion_matrix.update(pred, target)
 
                 # Guardar los embeddings y etiquetas
                 if idx_val == 0:
@@ -380,29 +326,18 @@ for epoch in range(cfg.max_epochs):
 
                 for label, embeddings in embeddings_list_by_class.items():
                     all_embeddings.extend(embeddings)
-                    # Obtener la etiqueta textual de la clase a través del handler
-                    label = handler.get_tract_from_label(label)
-                    print(label)
                     all_labels.extend([label] * len(embeddings))
 
-                # Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at /opt/conda/conda-bld/pytorch_1704987394225/work/torch/csrc/utils/tensor_new.cpp:275.)
-                # Convertir listas a numpy.ndarray
-                all_embeddings = np.array(all_embeddings)
-                all_labels = np.array(all_labels)
-
-
-                # Convertir a tensores
                 # Convertir a tensores
                 all_embeddings = torch.tensor(all_embeddings)
-                all_labels = all_labels.tolist()  # TensorBoard necesita etiquetas como lista de strings
-
+                all_labels = torch.tensor(all_labels)
 
                 # Guardar los embeddings y etiquetas en TensorBoard
                 writer.add_embedding(
                     all_embeddings, 
-                    metadata = all_labels, 
+                    metadata = all_labels.tolist(), 
                     global_step = epoch,
-                    tag = f"{cfg.dataset}_{cfg.encoder}_{cfg.embedding_projection_dim}_{time.time()}"
+                    tag = 'valid_embeddings_tractoinferno'
                 ) 
 
             if log:# Loggear las métricas de subject
@@ -410,39 +345,14 @@ for epoch in range(cfg.max_epochs):
                 run["val/subject/f1"].log(subj_f1_val.compute().item())
                 run["val/subject/auroc"].log(subj_auroc_val.compute().item())
 
-                cm = subj_confusion_matrix.compute()
-                # Convertir la matriz de confusión a numpy
-                cm = cm.cpu().numpy()
+                subj_accuracy_val.reset()
+                subj_f1_val.reset()
+                subj_auroc_val.reset()
 
-                # Visualiza la matriz de confusión y guárdala como imagen
-                plt.figure(figsize=(35, 35))
-                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-
-                text_labels = [handler.get_tract_from_label(i) for i in range(cfg.n_classes)]
-                plt.xticks(ticks = range(cfg.n_classes), labels = text_labels, rotation = 90)
-                plt.yticks(ticks = range(cfg.n_classes), labels = text_labels, rotation = 0)
-                plt.xlabel('Predicted Labels')
-                plt.ylabel('True Labels')
-                plt.title(f'Confusion Matrix Subj {idx_val}')
-                plt.tight_layout()
-
-                # Guarda la imagen
-                img_path = f'/app/confusion_matrix_imgs/confusion_matrix_val_suj{idx_val}.png'
-                plt.savefig(img_path)
-                plt.close()
-
-                # Sube la imagen a Neptune
-                run["confusion_matrix_fig"].upload(img_path)
-            
-            subj_accuracy_val.reset()
-            subj_f1_val.reset()
-            subj_auroc_val.reset()
-            subj_confusion_matrix.reset()
-
-        if idx_val == 6:
+        if idx_val == 2:
             break
 
 # Cerrar el SummaryWriter
 writer.close()
 
-                   
+               

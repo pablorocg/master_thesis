@@ -27,7 +27,7 @@ class GCNEncoder(nn.Module):
     def __init__(self, in_channels, hidden_dim, out_channels, dropout, n_hidden_blocks):
         super(GCNEncoder, self).__init__()
         self.input_block = GraphConvBlock(in_channels, hidden_dim, dropout)
-        self.hidden_blocks = nn.ModuleList([GraphConvBlock(hidden_dim, hidden_dim, dropout) for _ in range(n_hidden_blocks - 1)])
+        self.hidden_blocks = ModuleList([GraphConvBlock(hidden_dim, hidden_dim, dropout) for _ in range(n_hidden_blocks - 1)])
         self.output_block = GraphConvBlock(hidden_dim, out_channels, dropout)
 
     def forward(self, data):
@@ -50,20 +50,20 @@ class ProjectionHead(nn.Module):
         self,
         embedding_dim,# Salida del modelo de lenguaje (768)
         projection_dim, # Dimensión de la proyección (256)
-        dropout=0.1
+        # dropout=0.1
     ):
         super(ProjectionHead, self).__init__()
         self.projection = nn.Linear(embedding_dim, projection_dim)
         self.gelu = nn.GELU()
         self.fc = nn.Linear(projection_dim, projection_dim)
-        self.dropout = nn.Dropout(dropout)
+        # self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(projection_dim)
 
     def forward(self, x):
         projected = self.projection(x)
         x = self.gelu(projected)
         x = self.fc(x)
-        x = self.dropout(x)
+        # x = self.dropout(x)
         x = x + projected
         x = self.layer_norm(x)
         return x
@@ -108,7 +108,7 @@ import torch.nn.functional as F
 import torch_geometric
 from torch_geometric.nn import MLP, GINConv, global_add_pool
 
-class GIN(torch.nn.Module):# GRaph Isomorphism Network
+class GINEncoder(torch.nn.Module):# GRaph Isomorphism Network
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers):
         super().__init__()
 
@@ -121,20 +121,27 @@ class GIN(torch.nn.Module):# GRaph Isomorphism Network
         self.mlp = MLP([hidden_channels, hidden_channels, out_channels],
                        norm=None, dropout=0.5)
 
-    def forward(self, x, edge_index, batch, batch_size):
+    def forward(self, data, batch_size):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
         for conv in self.convs:
             x = conv(x, edge_index).relu()
-        # Pass the batch size to avoid CPU communication/graph breaks:
+        
         x = global_add_pool(x, batch, size=batch_size)
         return self.mlp(x)
     
 
-#     model = GIN(
-#     in_channels=dataset.num_features,
-#     hidden_channels=32,
-#     out_channels=dataset.num_classes,
-#     num_layers=5,
-# ).to(device)
+#================================================MODEL======================================================
+from torch_geometric.nn import GATConv, global_mean_pool
 
-# # Compile the model into an optimized version:
-# model = torch.compile(model, dynamic=True)
+class GATEncoder(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels):
+        super(GATEncoder, self).__init__()
+        self.conv1 = GATConv(in_channels, hidden_channels, heads=8, concat=True)
+        self.conv2 = GATConv(hidden_channels * 8, out_channels, heads=8, concat=False)
+
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+        x = F.elu(self.conv1(x, edge_index))
+        x = F.elu(self.conv2(x, edge_index))
+        graph_embedding = global_mean_pool(x, batch)
+        return graph_embedding
