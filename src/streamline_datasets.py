@@ -201,6 +201,8 @@ class TestDataset(Dataset):
     def __init__(self, trk_file, ds_handler, transform=None):
 
         self.trk_file = load_trk(str(trk_file), 'same', bbox_valid_check=False)
+        # Compute the bounding box of the tract
+        self.trk_file.remove_invalid_streamlines()
         
         self.streamlines = self.trk_file.streamlines
         self.label = ds_handler.get_label_from_tract(trk_file.stem)
