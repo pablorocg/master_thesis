@@ -206,12 +206,20 @@ class TestDataset(Dataset):
         
         self.streamlines = self.trk_file.streamlines
         self.label = ds_handler.get_label_from_tract(trk_file.stem)
+        
+        self.transform = transform
 
     def __len__(self):
         return len(self.streamlines)
     
     def __getitem__(self, idx):
-        return create_graph(self.streamlines[idx], self.label)
+
+        graph = create_graph(self.streamlines[idx], self.label)
+
+        if self.transform:
+            graph = self.transform(graph)
+        return graph
+    
 
 #================================================TRANSFORMS=====================================================
 class MaxMinNormalization(BaseTransform):
@@ -220,14 +228,15 @@ class MaxMinNormalization(BaseTransform):
         Initialize the normalization transform with optional max and min values.
         If not provided, they should be computed from the dataset.
         """
-        if dataset == "HCP_105" or dataset == "Tractoinferno":# Normalizacion para datos MNI-152
+        if dataset == "HCP_105" or dataset == "Tractoinferno" or dataset == "HCP_105_without_CC":
+        # Normalizacion para datos MNI-152
 
             self.max_values = torch.tensor([74.99879455566406, 82.36431884765625, 97.47947692871094], dtype=torch.float)
             self.min_values = torch.tensor([-76.92510986328125, -120.4773941040039, -81.27867126464844], dtype=torch.float)
 
         elif dataset == "FiberCup":
             self.max_values = torch.tensor([486.051, 454.08902, 25.558952], dtype=torch.float)
-            self.min_values = torch.tensor([72.0, 47.815502, -6.408,], dtype=torch.float)
+            self.min_values = torch.tensor([72.0, 47.815502, -6.408], dtype=torch.float)
         else:
             # Lanzar error
             raise ValueError("Dataset no reconocido")

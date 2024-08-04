@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, global_mean_pool, BatchNorm
+from torch_geometric.nn import GCNConv,GraphConv, global_mean_pool, BatchNorm
 from torch.nn import ModuleList
 import torch.nn.functional as F
 
@@ -11,6 +11,7 @@ class GraphConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, dropout=0.0):
         super(GraphConvBlock, self).__init__()
         self.conv = GCNConv(in_channels, out_channels)
+        # self.conv = GraphConv(in_channels, out_channels)
         self.bn = BatchNorm(out_channels)
         self.relu = nn.LeakyReLU()
         self.dropout = nn.Dropout(p=dropout) if dropout > 0 else None
@@ -82,14 +83,47 @@ class ClassifierHead(nn.Module):
     def forward(self, x):
         x = self.fc(x)
         return self.softmax(x)
+    
+class ClassifierHead_v3(nn.Module):
+    def __init__(self, projection_dim, n_classes, hidden_dim=256, dropout_rate=0.5):
+        super(ClassifierHead_v3, self).__init__()
+        self.fc1 = nn.Linear(projection_dim, hidden_dim)
+        self.bn1 = nn.BatchNorm1d(hidden_dim)
+        self.activation1 = nn.ReLU()
+        self.dropout1 = nn.Dropout(dropout_rate)
+        
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.bn2 = nn.BatchNorm1d(hidden_dim)
+        self.activation2 = nn.ReLU()
+        self.dropout2 = nn.Dropout(dropout_rate)
+        
+        self.fc3 = nn.Linear(hidden_dim, n_classes)
+        self.softmax = nn.LogSoftmax(dim=1)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.bn1(x)
+        x = self.activation1(x)
+        x = self.dropout1(x)
+        
+        x = self.fc2(x)
+        x = self.bn2(x)
+        x = self.activation2(x)
+        x = self.dropout2(x)
+        
+        x = self.fc3(x)
+        x = self.softmax(x)
+        return x
 
 
 #================================================MODEL======================================================
 class SiameseGraphNetwork(nn.Module):
-    def __init__(self, encoder, projection_head, classifier):
+    def __init__(self, encoder, projection_head, classifier = None):
         super(SiameseGraphNetwork, self).__init__()
         self.encoder = encoder
         self.projection_head = projection_head
+        if classifier is None:
+            self.classifier = ClassifierHead(projection_head.fc.in_features, n_classes)
         self.classifier = classifier
 
     def forward(self, graph):

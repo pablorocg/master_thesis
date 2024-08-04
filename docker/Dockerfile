@@ -7,7 +7,9 @@ RUN apt-get update && apt-get install -y \
     libsndfile1-dev \
     libsox-fmt-all \
     sox \
-    libsox-dev
+    libsox-dev \ 
+    build-essential
+    
 
 # Install python dependencies
 COPY requirements.txt /tmp/requirements.txt

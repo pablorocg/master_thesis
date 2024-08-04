@@ -1,11 +1,4 @@
 # Modelo de clasificación de grafos de tractografías cerebrales sin contrastive loss
-#
-#
-#
-#
-#
-#
-
 
 from dataset_handlers import Tractoinferno_handler, HCP_handler
 import numpy as np

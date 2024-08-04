@@ -8,9 +8,10 @@ from torchmetrics.classification import (MulticlassAccuracy,
                                          MulticlassPrecision,
                                          MulticlassRecall)
 from tqdm import tqdm
-from dataset_handlers import (HCPHandler, 
-                            TractoinfernoHandler,
-                            FiberCupHandler)
+from dataset_handlers import (HCPHandler,
+                              HCP_Without_CC_Handler, 
+                              TractoinfernoHandler,
+                              FiberCupHandler)
 
 from streamline_datasets import (MaxMinNormalization,
                                 TestDataset, collate_test_ds)
@@ -30,7 +31,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-
+from gcn_encoder_model_v2 import SiameseGraphNetworkGCN_v2
 
 # Habilitar TensorFloat32 para una mejor performance en operaciones de multiplicación de matrices
 torch.set_float32_matmul_precision('high')
@@ -43,17 +44,22 @@ class CFG:
         self.seed = 42
       
         self.batch_size = 4096
-        self.encoder = "GCN" # Las opciones son "GAT" o "GCN" o "HGPSL"
-        self.dataset = "Tractoinferno" # "Tractoinferno o "FiberCup" o "HCP_105"
+        self.encoder = "GCNEncoder_v2" # Las opciones son "GAT" o "GCN" o "HGPSL"
+        self.dataset = "HCP_105_without_CC"#"Tractoinferno" # "Tractoinferno o "FiberCup" o "HCP_105"
 
         if self.dataset == "HCP_105":
             self.ds_path = "/app/dataset/HCP_105"
             self.pretrained_model_path = "/app/pretrained_models/encoder_HCP_105.pt"
             self.n_classes = 72 # 72 tractos o 71 tractos sin CC
 
+        elif self.dataset == "HCP_105_without_CC":
+            self.ds_path = "/app/dataset/HCP_105"
+            self.pretrained_model_path = "/app/trained_models/checkpoint_HCP_105_without_CC_GCNEncoder_v2_512_1.pth"
+            self.n_classes = 71
+
         elif self.dataset == "Tractoinferno":
             self.ds_path = "/app/dataset/Tractoinferno/tractoinferno_preprocessed_mni"
-            self.pretrained_model_path = "/app/pretrained_models/encoder_tractoinferno.pt"
+            self.pretrained_model_path = "/app/trained_models/checkpoint_Tractoinferno_GCN_512_0.pth"
             self.n_classes = 32
         
         elif self.dataset == "FiberCup":
@@ -61,7 +67,7 @@ class CFG:
             self.pretrained_model_path = "/app/pretrained_models/encoder_fibercup.pt"
             self.n_classes = 7
 
-        self.embedding_projection_dim = 128
+        self.embedding_projection_dim = 512
         
     
 cfg = CFG()
@@ -85,6 +91,10 @@ seed_everything(cfg.seed)
 # Cargar las rutas de los sujetos de entrenamiento, validación y test
 if cfg.dataset == "HCP_105":
     handler = HCPHandler(path = cfg.ds_path, scope = "testset")
+    test_data = handler.get_data()
+
+elif cfg.dataset == "HCP_105_without_CC":
+    handler = HCP_Without_CC_Handler(path = cfg.ds_path, scope = "testset")
     test_data = handler.get_data()
     
 
@@ -113,45 +123,57 @@ elif cfg.encoder == "GCN":# Graph Convolutional Network
                          n_hidden_blocks = 2)
     
 
+elif cfg.encoder == "GCNEncoder_v2":
+    model = SiameseGraphNetworkGCN_v2(n_classes = cfg.n_classes).cuda()
+    # Compile the model into an optimized version:
+    model = torch.compile(model, dynamic=True)
 
 
 
 
-# Crear el modelo
-model = SiameseGraphNetwork(
-    encoder = encoder,
-    projection_head = ProjectionHead(embedding_dim = 128, 
-                                     projection_dim = cfg.embedding_projection_dim),
-    classifier = ClassifierHead(projection_dim = cfg.embedding_projection_dim, 
-                                n_classes = cfg.n_classes)
-).cuda()
 
-
-# Compile the model into an optimized version:
-model = torch.compile(model, dynamic=True)
-
-
+# # Crear el modelo
+# model = SiameseGraphNetwork(
+#     encoder = encoder,
+#     projection_head = ProjectionHead(embedding_dim = 128, 
+#                                      projection_dim = cfg.embedding_projection_dim),
+#     classifier = ClassifierHead(projection_dim = cfg.embedding_projection_dim, 
+#                                 n_classes = cfg.n_classes)
+# ).cuda()
 
 # Cargar el modelo preentrenado
-# model.load_state_dict(torch.load(cfg.pretrained_model_path))
+model.load_state_dict(torch.load(cfg.pretrained_model_path)["model_state_dict"])
 
 
 
-# Crear las métricas con torchmetrics
-subj_accuracy = MulticlassAccuracy(num_classes = cfg.n_classes, average='macro').cuda()
-subj_f1 = MulticlassF1Score(num_classes = cfg.n_classes, average='macro').cuda()
-subj_precision = MulticlassPrecision(num_classes = cfg.n_classes, average='macro').cuda()
-subj_recall = MulticlassRecall(num_classes = cfg.n_classes, average='macro').cuda()
-subj_auroc = MulticlassAUROC(num_classes = cfg.n_classes).cuda()
+
+
+
+
+
+
 
 # Crear un dataframe para almacenar las métricas de los sujetos
 df_subjects = pd.DataFrame(columns = ['subject_id', 'tract', 'accuracy', 'precision', 'recall', 'F1', 'AUCROC', 'DICE', 'wDICE'])
 
 model.eval()
+# Iterar sobre los sujetos
 for idx_val, subject in tqdm(enumerate(test_data), total = len(test_data), desc = "Subjects"):
+    
+    # Iterar sobre los tractos
     for file in tqdm(subject['tracts'], total = len(subject['tracts']), desc = "Tracts", leave = False):
-        correct_streamlines_idx = []
 
+        # Crear las métricas con torchmetrics para evaluar cada sujeto
+        tract_accuracy = MulticlassAccuracy(num_classes = cfg.n_classes, average='macro').cuda()
+        tract_f1 = MulticlassF1Score(num_classes = cfg.n_classes, average='macro').cuda()
+        tract_precision = MulticlassPrecision(num_classes = cfg.n_classes, average='macro').cuda()
+        tract_recall = MulticlassRecall(num_classes = cfg.n_classes, average='macro').cuda()
+        tract_auroc = MulticlassAUROC(num_classes = cfg.n_classes).cuda()
+
+        correct_streamlines_idx = []# Almacenar los indices de los grafos clasificados correctamente en el tracto actual
+       
+
+        print(f"Subject: {subject['subject']}, Tract: {file.stem}")
         ds = TestDataset(file, 
                             handler,
                             transform = MaxMinNormalization(dataset = cfg.dataset))
@@ -170,18 +192,19 @@ for idx_val, subject in tqdm(enumerate(test_data), total = len(test_data), desc 
                     _, pred = model(graph)# Forward pass
                     
                 # Calcular métricas de test
-                subj_accuracy.update(pred, target)
-                subj_f1.update(pred, target)
-                subj_auroc.update(pred, target)
-                subj_precision.update(pred, target)
-                subj_recall.update(pred, target)
+                tract_accuracy.update(pred, target)
+                tract_f1.update(pred, target)
+                tract_auroc.update(pred, target)
+                tract_precision.update(pred, target)
+                tract_recall.update(pred, target)
 
-                # Obtener las predicciones
-                pred = pred.argmax(dim = -1)
-                
+            
                 # Obtener los indices de los grafos clasificados correctamente
+                pred = torch.argmax(pred, dim = -1)
                 correct_idxs = torch.where(pred == target)[0]
                 correct_streamlines_idx.extend(correct_idxs.tolist())
+
+            
 
             # Calcular las métricas de DICE y wDICE
             wdice, dice = get_dice_metrics(file, correct_streamlines_idx)
@@ -191,11 +214,11 @@ for idx_val, subject in tqdm(enumerate(test_data), total = len(test_data), desc 
             row = [
                 subject['subject'], # subject_id
                 file.stem, # tract
-                subj_accuracy.compute().item(), # accuracy
-                subj_precision.compute().item(), # precision 
-                subj_recall.compute().item(), # recall
-                subj_f1.compute().item(), # F1
-                subj_auroc.compute().item(), # AUCROC
+                tract_accuracy.compute().item(), # accuracy
+                tract_precision.compute().item(), # precision 
+                tract_recall.compute().item(), # recall
+                tract_f1.compute().item(), # F1
+                tract_auroc.compute().item(), # AUCROC
                 dice.item(), # DICE
                 wdice.item() # wDICE
             ]
@@ -207,14 +230,14 @@ for idx_val, subject in tqdm(enumerate(test_data), total = len(test_data), desc 
 
 
             # Resetear las métricas de subject
-            subj_accuracy.reset()
-            subj_f1.reset()
-            subj_auroc.reset()
-            subj_precision.reset()
-            subj_recall.reset()
+            tract_accuracy.reset()
+            tract_f1.reset()
+            tract_auroc.reset()
+            tract_precision.reset()
+            tract_recall.reset()
 
 # Guardar el dataframe en un archivo csv
-df_subjects.to_csv(f"/app/resultados/results_{cfg.dataset}_{cfg.encoder}.csv", index = False)
+df_subjects.to_csv(f"/app/resultados/results_{cfg.dataset}_{cfg.encoder}_v2.csv", index = False)
 
 
     

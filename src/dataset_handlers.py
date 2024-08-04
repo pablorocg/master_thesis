@@ -574,8 +574,219 @@ class HCPHandler:
 
 
 
+#===========================HCP 105 WITHOUT CC HANDLER CLASS===========================#
+class HCP_Without_CC_Handler:
+    def __init__(self, path:str, scope:str):
+        # HCP FOLDS
+        self.fold1 = ['992774', '991267', '987983', '984472', '983773', '979984', '978578', '965771', '965367', '959574', '958976', '957974', '951457', '932554', '930449', '922854', '917255', '912447', '910241', '907656', '904044']
+        self.fold2 = ['901442', '901139', '901038', '899885', '898176', '896879', '896778', '894673', '889579', '887373', '877269', '877168', '872764', '872158', '871964', '871762', '865363', '861456', '859671', '857263', '856766']
+        self.fold3 = ['849971', '845458', '837964', '837560', '833249', '833148', '826454', '826353', '816653', '814649', '802844', '792766', '792564', '789373', '786569', '784565', '782561', '779370', '771354', '770352', '765056']
+        self.fold4 = ['761957', '759869', '756055', '753251', '751348', '749361', '748662', '748258', '742549', '734045', '732243', '729557', '729254', '715647', '715041', '709551', '705341', '704238', '702133', '695768', '690152']
+        self.fold5 = ['687163', '685058', '683256', '680957', '679568', '677968', '673455', '672756', '665254', '654754', '645551', '644044', '638049', '627549', '623844', '622236', '620434', '613538', '601127', '599671', '599469']
+
+        self.trainset = self.fold1 + self.fold2 + self.fold3 
+        self.validset = self.fold4
+        self.testset = self.fold5
 
 
+        # crear un path con pathlib2 y comprobar que existe
+        if pathlib.Path(path).exists():
+            self.hcp_path = pathlib.Path(path)
+        else:
+            raise ValueError("La ruta al dataset HCP 105 no existe.")
+        
+        # Comprobar que el scope es correcto
+        if scope not in ["trainset", "validset", "testset", "all"]:
+            raise ValueError("El scope debe ser 'trainset', 'validset', 'testset' o 'all'.")
+        else:
+            self.scope = scope
+            self.subjects = self._get_subjects()
+
+        # Lista de tractos
+        self.TRACT_LIST = {
+            'AF_left': {'id': 0, 'tract':'Left Arcuate Fasciculus'},
+            'AF_right': {'id': 1, 'tract':'Right Arcuate Fasciculus'},
+            'ATR_left': {'id': 2, 'tract':'Left Anterior Thalamic Radiation'},
+            'ATR_right': {'id': 3, 'tract':'Right Anterior Thalamic Radiation'},
+            'CA': {'id': 4, 'tract': 'Commissure Anterior'},
+            'CC_1': {'id': 5, 'tract': 'Corpus Callosum 1'},
+            'CC_2': {'id': 6, 'tract': 'Corpus Callosum 2'},
+            'CC_3': {'id': 7, 'tract': 'Corpus Callosum 3'},
+            'CC_4': {'id': 8, 'tract': 'Corpus Callosum 4'},
+            'CC_5': {'id': 9, 'tract': 'Corpus Callosum 5'},
+            'CC_6': {'id': 10, 'tract': 'Corpus Callosum 6'},
+            'CC_7': {'id': 11, 'tract': 'Corpus Callosum 7'},
+            'CG_left': {'id': 12, 'tract': 'Left Cingulum'},
+            'CG_right': {'id': 13, 'tract': 'Right Cingulum'},
+            'CST_left': {'id': 14, 'tract': 'Left Corticospinal Tract'},
+            'CST_right': {'id': 15, 'tract': 'Right Corticospinal Tract'},
+            'MLF_left': {'id': 16, 'tract': 'Left Middle Longitudinal Fascicle'},
+            'MLF_right': {'id': 17, 'tract': 'Right Middle Longitudinal Fascicle'},
+            'FPT_left': {'id': 18, 'tract': 'Left Fronto-Pontine Tract'},
+            'FPT_right': {'id': 19, 'tract': 'Right Fronto-Pontine Tract'},
+            'FX_left': {'id': 20, 'tract': 'Left Fornix'},
+            'FX_right': {'id': 21, 'tract': 'Right Fornix'},
+            'ICP_left': {'id': 22, 'tract': 'Left Inferior Cerebellar Peduncle'},
+            'ICP_right': {'id': 23, 'tract': 'Right Inferior Cerebellar Peduncle'},
+            'IFO_left': {'id': 24, 'tract': 'Left Inferior Occipito-Frontal Fascicle'},
+            'IFO_right': {'id': 25, 'tract': 'Right Inferior Occipito-Frontal Fascicle'},
+            'ILF_left': {'id': 26, 'tract': 'Left Inferior Longitudinal Fascicle'},
+            'ILF_right': {'id': 27, 'tract': 'Right Inferior Longitudinal Fascicle'},
+            'MCP': {'id': 28, 'tract': 'Middle Cerebellar Peduncle'},
+            'OR_left': {'id': 29, 'tract': 'Left Optic Radiation'},
+            'OR_right': {'id': 30, 'tract': 'Right Optic Radiation'},
+            'POPT_left': {'id': 31, 'tract': 'Left Parieto-Occipital Pontine'},
+            'POPT_right': {'id': 32, 'tract': 'Right Parieto-Occipital Pontine'},
+            'SCP_left': {'id': 33, 'tract': 'Left Superior Cerebellar Peduncle'},
+            'SCP_right': {'id': 34, 'tract': 'Right Superior Cerebellar Peduncle'},
+            'SLF_I_left': {'id': 35, 'tract': 'Left Superior Longitudinal Fascicle I'},
+            'SLF_I_right': {'id': 36, 'tract': 'Right Superior Longitudinal Fascicle I'},
+            'SLF_II_left': {'id': 37, 'tract': 'Left Superior Longitudinal Fascicle II'},
+            'SLF_II_right': {'id': 38, 'tract': 'Right Superior Longitudinal Fascicle II'},
+            'SLF_III_left': {'id': 39, 'tract': 'Left Superior Longitudinal Fascicle III'},
+            'SLF_III_right': {'id': 40, 'tract': 'Right Superior Longitudinal Fascicle III'},
+            'STR_left': {'id': 41, 'tract': 'Left Superior Thalamic Radiation'},
+            'STR_right': {'id': 42, 'tract': 'Right Superior Thalamic Radiation'},
+            'UF_left': {'id': 43, 'tract': 'Left Uncinate Fascicle'},
+            'UF_right': {'id': 44, 'tract': 'Right Uncinate Fascicle'},
+            'T_PREF_left': {'id': 45, 'tract': 'Left Thalamo-Prefrontal'},
+            'T_PREF_right': {'id': 46, 'tract': 'Right Thalamo-Prefrontal'},
+            'T_PREM_left': {'id': 47, 'tract': 'Left Thalamo-Premotor'},
+            'T_PREM_right': {'id': 48, 'tract': 'Right Thalamo-Premotor'},
+            'T_PREC_left': {'id': 49, 'tract': 'Left Thalamo-Precentral'},
+            'T_PREC_right': {'id': 50, 'tract': 'Right Thalamo-Precentral'},
+            'T_POSTC_left': {'id': 51, 'tract': 'Left Thalamo-Postcentral'},
+            'T_POSTC_right': {'id': 52, 'tract': 'Right Thalamo-Postcentral'},
+            'T_PAR_left': {'id': 53, 'tract': 'Left Thalamo-Parietal'},
+            'T_PAR_right': {'id': 54, 'tract': 'Right Thalamo-Parietal'},
+            'T_OCC_left': {'id': 55, 'tract': 'Left Thalamo-Occipital'},
+            'T_OCC_right': {'id': 56, 'tract': 'Right Thalamo-Occipital'},
+            'ST_FO_left': {'id': 57, 'tract': 'Left Striato-Fronto-Orbital'},
+            'ST_FO_right': {'id': 58, 'tract': 'Right Striato-Fronto-Orbital'},
+            'ST_PREF_left': {'id': 59, 'tract': 'Left Striato-Prefrontal'},
+            'ST_PREF_right': {'id': 60, 'tract': 'Right Striato-Prefrontal'},
+            'ST_PREM_left': {'id': 61, 'tract': 'Left Striato-Premotor'},
+            'ST_PREM_right': {'id': 62, 'tract': 'Right Striato-Premotor'},
+            'ST_PREC_left': {'id': 63, 'tract': 'Left Striato-Precentral'},
+            'ST_PREC_right': {'id': 64, 'tract': 'Right Striato-Precentral'},
+            'ST_POSTC_left': {'id': 65, 'tract': 'Left Striato-Postcentral'},
+            'ST_POSTC_right': {'id': 66, 'tract': 'Right Striato-Postcentral'},
+            'ST_PAR_left': {'id': 67, 'tract': 'Left Striato-Parietal'},
+            'ST_PAR_right': {'id': 68, 'tract': 'Right Striato-Parietal'},
+            'ST_OCC_left': {'id': 69, 'tract': 'Left Striato-Occipital'},
+            'ST_OCC_right': {'id': 70, 'tract': 'Right Striato-Occipital'}
+        }
+            
+          
+
+        # Diccionario igual pero cambiando el valor de id por la key Ej: {'0': 'AF_L', '1': 'AF_R', ...}
+        self.LABELS = {value["id"]: key for key, value in self.TRACT_LIST.items()}
+        print(self.LABELS)
+
+    def _get_subjects(self) -> list[pathlib.Path]:
+        """
+        Function to get the subjects of the dataset.
+
+        Returns:
+            list[pathlib.Path]: List of the subjects of the dataset.
+        """
+        if self.scope == "all":
+            # Devuelve la ruta de todas las subcarpetas de las carpetas trainset, validationset y testset
+            return [path for path in self.hcp_path.glob("*") if path.is_dir()]
+        elif self.scope == "trainset":
+            # Devuelve la ruta de todas las subcarpetas de la carpeta trainset
+            return [path for path in self.hcp_path.glob("*") if path.is_dir() and path.name in self.trainset]
+        elif self.scope == "validset":
+            # Devuelve la ruta de todas las subcarpetas de la carpeta validationset
+            return [path for path in self.hcp_path.glob("*") if path.is_dir() and path.name in self.validset]
+        elif self.scope == "testset":
+            # Devuelve la ruta de todas las subcarpetas de la carpeta testset
+            return [path for path in self.hcp_path.glob("*") if path.is_dir() and path.name in self.testset]
+        
+    def get_split_from_subject(self, subject:pathlib.Path) -> str:
+        """
+        Function to get the split of the subject.
+
+        Args:
+            subject (str): Name of the subject.
+
+        Returns:
+            str: Split of the subject.
+        """
+        if subject.name in self.trainset:
+            return "trainset"
+        elif subject.name in self.validset:
+            return "validset"
+        elif subject.name in self.testset:
+            return "testset"
+        else:
+            return "unknown"
+            
+    def get_tract_paths_from_suj(self, 
+                                 subject:pathlib.Path, 
+                                 tract:str = "all", 
+                                 extension:str = "trk"):
+        """
+        Function to get the paths of the tracts of a subject.
+
+        Args:
+            subject (str): Name of the subject.
+            tract (str): Name of the tract.
+
+        Returns:
+            list[str]: List of the paths of the tracts of a subject.
+        """
+        # if tract not in self.TRACT_LIST.keys() and tract != "all":
+        #     raise ValueError("El tracto no existe.")
+        
+        if tract == "all":
+            # Devuelve la ruta de todos los tractos de un sujeto excepto las rutas que tengan como filename CC
+            return [path for path in subject.joinpath("tracts").glob(f"*.{extension}") if "CC.trk" not in str(path)]
+
+        else:
+            # Devuelve la ruta de un tracto de un sujeto
+            return [path for path in (subject.joinpath("tracts").glob(f"*{tract}*.{extension}"))]    
+
+    def get_data_from_subject(self, subject:pathlib.Path, extension:str = "trk") -> dict:
+        split = self.get_split_from_subject(subject)
+        tracts = self.get_tract_paths_from_suj(subject, extension = extension) # Devuelve la lista de tractos de un sujeto
+        return {"subject": subject.name, "subject_split":split, "T1w": None, "tracts": tracts}
+    
+    def get_label_from_tract(self, tract:str) -> str:
+        """
+        Devuelve la etiqueta de un tracto.
+
+        Args:
+            tract (str): Nombre del tracto.
+
+        Returns:
+            str: Etiqueta del tracto.
+        """
+        return self.TRACT_LIST[tract]["id"]
+    
+    def get_tract_from_label(self, label:int) -> str:
+        """
+        Devuelve el nombre de un tracto a partir de su etiqueta.
+
+        Args:
+            label (int): Etiqueta del tracto.
+
+        Returns:
+            str: Nombre del tracto.
+        """
+        for tract in self.TRACT_LIST.keys():
+            if self.TRACT_LIST[tract]["id"] == label:
+                return tract
+    
+    def get_data(self) -> list[dict]:
+        """ 
+        Devuelve una lista con los datos de todos los sujetos del dataset en .
+
+        lista[dict{Path, list[Path]}]
+
+        salida -> [sujeto1{anat, [tracto1, tracto2, ...]}, sujeto2{anat, [tracto1, tracto2, ...]}, ...]
+        """
+        return [self.get_data_from_subject(subject) for subject in self.subjects]
 
 
 

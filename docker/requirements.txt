@@ -11,4 +11,5 @@ tabulate
 neptune
 torchmetrics
 tensorboard
+seaborn
 

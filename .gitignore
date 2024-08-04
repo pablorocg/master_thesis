@@ -8,4 +8,6 @@ pretrained_models/*
 pruebas/*
 runs/*
 src/__pycache__/*
+trained_models/*
+
 

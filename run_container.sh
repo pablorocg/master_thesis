@@ -1,4 +1,4 @@
-docker run --rm -dit --gpus all --name tfm_prg -p 8888:8888 \
+docker run --rm -dit --gpus all --name tfm_prg -p 8895:8888 \
 --memory="15g" --memory-reservation="14g" \
 -v /mnt/LVMData/Datasets/Tractoinferno/:/app/dataset/Tractoinferno \
 -v /mnt/LVMData/Datasets/HCP105_Zenodo_NewTrkFormat/:/app/dataset/HCP_105 \
