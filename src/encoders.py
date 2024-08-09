@@ -179,3 +179,16 @@ class GATEncoder(torch.nn.Module):
         x = F.elu(self.conv2(x, edge_index))
         graph_embedding = global_mean_pool(x, batch)
         return graph_embedding
+
+
+class GraphClassifier(nn.Module):
+    def __init__(self, encoder, projection_head, classifier):
+        super(GraphClassifier, self).__init__()
+        self.encoder = encoder
+        self.projection_head = projection_head
+        self.classifier = classifier
+
+    def forward(self, data):
+        x = self.encoder(data)
+        x = self.projection_head(x)
+        return self.classifier(x)

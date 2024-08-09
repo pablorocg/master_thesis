@@ -11,6 +11,8 @@ from torch.utils.data import Dataset
 from torch_geometric.data import Data, Batch
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
+import numpy as np
+import os
 
 
 
@@ -39,7 +41,20 @@ class StreamlineTripletDataset(Dataset):
 
         # Filter out tracts with no streamlines
         self.streamlines_by_tract = {k: v for k, v in self.streamlines_by_tract.items() if len(v) > 0}
+        
+        # Normalize to unit sphere ============================================================
+        # # Obtener el centroide general de todas las streamlines
+        # self.general_centroid = np.mean([np.mean(streamline, axis=0) for streamlines in self.streamlines_by_tract.values() for streamline in streamlines], axis=0)
+        # # shift all streamlines to the general centroid (all points - general_centroid)
+        # # Shifted streamlines
+        # self.streamlines_by_tract = {tract_key: [streamline - self.general_centroid for streamline in streamlines] for tract_key, streamlines in self.streamlines_by_tract.items()}
+        # # Max radius of all streamlines
+        # self.max_radius = max([np.max(np.linalg.norm(streamline, axis=1)) for streamlines in self.streamlines_by_tract.values() for streamline in streamlines])
 
+        # # Normalize all streamlines
+        # self.normalized_streamlines = {tract_key: [streamline / self.max_radius for streamline in streamlines] for tract_key, streamlines in self.streamlines_by_tract.items()}
+
+        # =====================================================================================
 
     def __len__(self):
         return sum(len(streamlines) for streamlines in self.streamlines_by_tract.values())
@@ -66,7 +81,73 @@ class StreamlineTripletDataset(Dataset):
 
 def collate_triplet_ds(data_list):
     graphs_anchor, graphs_pos, graphs_neg = zip(*data_list)
-    return Batch.from_data_list(graphs_anchor), Batch.from_data_list(graphs_pos), Batch.from_data_list(graphs_neg)
+    
+    graphs_anchor = Batch.from_data_list(graphs_anchor)
+    graphs_pos = Batch.from_data_list(graphs_pos)
+    graphs_neg = Batch.from_data_list(graphs_neg)
+
+    return graphs_anchor, graphs_pos, graphs_neg
+
+
+from dipy.tracking.streamline import select_random_set_of_streamlines
+
+class StreamlineSingleDataset(Dataset):
+    def __init__(self, datadict: dict, ds_handler, transform=None, select_n_streamlines=1000):
+        self.subject = datadict # Subject data dictionary
+        self.transform = transform # Transform to apply to each graph
+
+        if select_n_streamlines is not None and select_n_streamlines >= 0:
+            self.streamlines_by_tract = {# Dictionary with the streamlines of each tract
+                ds_handler.get_label_from_tract(tract.stem): select_random_set_of_streamlines(
+                    load_trk(str(tract), 'same', bbox_valid_check=False).streamlines, 
+                    select_n_streamlines
+                )
+                for tract in self.subject["tracts"]
+            }
+
+        else:
+            self.streamlines_by_tract = {# Dictionary with the streamlines of each tract
+                ds_handler.get_label_from_tract(tract.stem): load_trk(str(tract), 'same', bbox_valid_check=False).streamlines
+                for tract in self.subject["tracts"]
+            }
+
+        self.streamlines = ArraySequence()
+        for tract, streamlines in self.streamlines_by_tract.items():
+            self.streamlines.extend(streamlines)
+            
+        self.labels = np.concatenate([[label]*len(streamlines) for label, streamlines in self.streamlines_by_tract.items()])
+            
+
+    def __len__(self):
+        return len(self.streamlines)
+
+    def __getitem__(self, idx):
+        # Select streamline in idx and its label
+        streamline = self.streamlines[idx]
+        label = self.labels[idx]
+
+        # Create graph
+        graph = create_graph(streamline, label)
+
+        if self.transform:
+            graph = self.transform(graph)
+        return graph
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #================================================PAIR DATASET=========================================================
@@ -119,46 +200,7 @@ def collate_pairs_ds(data_list):
     graphs_1, graphs_2 = zip(*data_list)
     return Batch.from_data_list(graphs_1), Batch.from_data_list(graphs_2), type_of_pair
 
-#===========================================SIMCLR DATASET=========================================================
-class StreamlineSimCLRDataset(Dataset):
-    def __init__(self, datadict: dict, ds_handler, transform=None):
-        self.subject = datadict
-        self.transform = transform
-        self.streamlines_by_tract = {
-            ds_handler.get_label_from_tract(tract.stem): load_trk(str(tract), 'same', bbox_valid_check=False).streamlines
-            for tract in self.subject["tracts"]
-        }
 
-    def __len__(self):
-        return sum(len(streamlines) for streamlines in self.streamlines_by_tract.values())
-    
-    def __getitem__(self, idx):
-        # Select a random tract key
-        tract_key = random.choice(list(self.streamlines_by_tract.keys()))
-        graph_1 = create_graph(random.choice(self.streamlines_by_tract[tract_key]), tract_key)
-        graph_2 = create_graph(random.choice(self.streamlines_by_tract[tract_key]), tract_key)
-
-        # Select a random tract key different from the previous one
-        while True:
-            tract_key_2 = random.choice(list(self.streamlines_by_tract.keys()))
-            if tract_key_2 != tract_key:
-                break
-        
-        graph_3 = create_graph(random.choice(self.streamlines_by_tract[tract_key_2]), tract_key_2)
-        graph_4 = create_graph(random.choice(self.streamlines_by_tract[tract_key_2]), tract_key_2)
-
-        if self.transform:
-            graph_1 = self.transform(graph_1)
-            graph_2 = self.transform(graph_2)
-            graph_3 = self.transform(graph_3)
-            graph_4 = self.transform(graph_4)
-
-        # graph_1 and graph_2 are positive examples, graph_3 and graph_4 are negative examples
-        return graph_1, graph_2, graph_3, graph_4
-    
-def collate_simclr_ds(data_list):
-    graphs_1, graphs_2, graphs_3, graphs_4 = zip(*data_list)
-    return Batch.from_data_list(graphs_1), Batch.from_data_list(graphs_2), Batch.from_data_list(graphs_3), Batch.from_data_list(graphs_4)
 
 
 #================================================INFERENCE DATASET=====================================================
@@ -171,31 +213,104 @@ class StreamlineTestDataset(Dataset):
     def __init__(self, datadict: dict, ds_handler, transform=None):
         self.subject = datadict
         self.transform = transform
+
         self.streamlines_by_tract = {
             ds_handler.get_label_from_tract(tract.stem): load_trk(str(tract), 'same', bbox_valid_check=False).streamlines
             for tract in self.subject["tracts"]
         }
 
+        # Unir todas las streamlines en un solo array de x 
+        self.streamlines = ArraySequence()
+        for tract, streamlines in self.streamlines_by_tract.items():
+            self.streamlines.extend(streamlines)
+            
+        self.labels = np.concatenate([[label]*len(streamlines) for label, streamlines in self.streamlines_by_tract.items()])
+
+
+
         # Ordenar el diccionario por clave
-        self.streamlines_by_tract = dict(sorted(self.streamlines_by_tract.items()))
+        # self.streamlines_by_tract = dict(sorted(self.streamlines_by_tract.items()))
 
     def __len__(self):
-        return sum(len(streamlines) for streamlines in self.streamlines_by_tract.values())
+        return len(self.streamlines)
+    #sum(len(streamlines) for streamlines in self.streamlines_by_tract.values())
 
     def __getitem__(self, idx):
-        cumulative_count = 0
-        for tract, streamlines in self.streamlines_by_tract.items():
-            if cumulative_count + len(streamlines) > idx:
-                streamline_idx = idx - cumulative_count
-                graph = create_graph(streamlines[streamline_idx], tract)
-                if self.transform:
-                    graph = self.transform(graph)
-                return graph
-            cumulative_count += len(streamlines)
-        raise IndexError("Index out of range")
+        # Select streamline in idx and its label
+        streamline = self.streamlines[idx]
+        label = self.labels[idx]
+
+        # Create graph for the anchor example
+        graph = create_graph(streamline, label)
+
+        if self.transform:
+            graph = self.transform(graph)
+        return graph
+        # cumulative_count = 0
+        # for tract, streamlines in self.streamlines_by_tract.items():
+        #     if cumulative_count + len(streamlines) > idx:
+        #         streamline_idx = idx - cumulative_count
+        #         graph = create_graph(streamlines[streamline_idx], tract)
+        #         if self.transform:
+        #             graph = self.transform(graph)
+        #         return graph
+        #     cumulative_count += len(streamlines)
+        # raise IndexError("Index out of range")
 
 def collate_test_ds(data_list):
     return Batch.from_data_list(data_list)
+
+
+#==================================================================================================
+# class StreamlineSingleDataset(Dataset):
+#     """
+#     Dataset para entrenar una red siamesa con triplet loss. Se generan tripletas de la forma (anchor, positive, negative).
+
+#     Args:
+#         datadict (dict): Diccionario con la información de los tractos de un sujeto.
+#         ds_handler (DatasetHandler): Objeto que maneja la información del dataset.
+#         transform (callable, optional): Transformación a aplicar a cada grafo.
+#     """
+
+#     def __init__(self, datadict: dict, ds_handler, transform=None):
+#         self.subject = datadict # Subject data dictionary
+
+#         self.transform = transform # Transform to apply to each graph
+
+#         self.streamlines_by_tract = {# Dictionary with the streamlines of each tract
+#             ds_handler.get_label_from_tract(tract.stem): load_trk(str(tract), 'same', bbox_valid_check=False).streamlines
+#             for tract in self.subject["tracts"]
+#         }
+
+#         # Filter out tracts with no streamlines
+#         self.streamlines_by_tract = {k: v for k, v in self.streamlines_by_tract.items() if len(v) > 0}
+
+
+#     def __len__(self):
+#         return sum(len(streamlines) for streamlines in self.streamlines_by_tract.values())
+
+#     def __getitem__(self, idx):
+#         # Select a random tract key
+#         tract_key = random.choice(list(self.streamlines_by_tract.keys()))
+        
+#         # Create graphs for anchor, positive and negative examples
+#         anchor_graph = create_graph(random.choice(self.streamlines_by_tract[tract_key]), tract_key)
+
+
+#         if self.transform:
+#             anchor_graph = self.transform(anchor_graph)
+
+
+#         return anchor_graph
+
+# def collate_triplet_ds(data_list):
+#     graphs_anchor = data_list
+#     return Batch.from_data_list(graphs_anchor)
+
+
+
+
+
 #=======================================TEST DATASET=========================================================
 class TestDataset(Dataset):
     def __init__(self, trk_file, ds_handler, transform=None):
@@ -221,6 +336,22 @@ class TestDataset(Dataset):
         return graph
     
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #================================================TRANSFORMS=====================================================
 class MaxMinNormalization(BaseTransform):
     def __init__(self, dataset=None):
@@ -244,16 +375,28 @@ class MaxMinNormalization(BaseTransform):
     def __call__(self, data: Data) -> Data:
         """
         Apply min-max normalization to the node features.
+        data.x is expected to be a tensor of shape [num_nodes, 3].
         """
         data.x = (data.x - self.min_values) / (self.max_values - self.min_values)
         return data
+
+
+
+
+
+
+
+
+
+
+
 
 #================================================UTILS=====================================================
 
 def create_graph(streamline, tract_key):
     nodes = torch.from_numpy(streamline).float()
     edges = torch.tensor(
-        [[i, i+1] for i in range(nodes.size(0)-1)] + [[i+1, i] for i in range(nodes.size(0)-1)], dtype=torch.long
+        [[i, i+1] for i in range(nodes.size(0)-1)], dtype=torch.long
     ).t().contiguous()
     return Data(x=nodes, edge_index=edges, y=torch.tensor(tract_key, dtype=torch.long))
 
@@ -311,7 +454,26 @@ def fill_tracts_ds(subjects):
     filled_subjects = fill_missing_tracts(subjects, tracts_dict)
     return filled_subjects
 
+# Seed setting function
+def seed_everything(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
+# Función para guardar un checkpoint
+def save_checkpoint(epoch, model, optimizer, loss, filename='checkpoint.pth'):
+    checkpoint_dir = '/app/trained_models'
+    checkpoint = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss
+    }
+    torch.save(checkpoint, os.path.join(checkpoint_dir, filename))
 
 
 
@@ -422,3 +584,106 @@ def fill_tracts_ds(subjects):
 #                 return graph
 #             cumulative_count += len(streamlines)
 #         raise IndexError("Index out of range")
+
+
+from nibabel.streamlines import ArraySequence
+class StreamlineTripletDataset_v2(Dataset):
+    """
+    Dataset para entrenar una red siamesa con triplet loss. Se generan tripletas de la forma (anchor, positive, negative).
+
+    Args:
+        datadict (dict): Diccionario con la información de los tractos de un sujeto.
+        ds_handler (DatasetHandler): Objeto que maneja la información del dataset.
+        transform (callable, optional): Transformación a aplicar a cada grafo.
+    """
+
+    def __init__(self, datadict: dict, ds_handler, transform=None):
+        self.subject = datadict # Subject data dictionary
+
+        self.transform = transform # Transform to apply to each graph
+
+        self.streamlines_by_tract = {# Dictionary with the streamlines of each tract
+            ds_handler.get_label_from_tract(tract.stem): load_trk(str(tract), 'same', bbox_valid_check=False).streamlines
+            for tract in self.subject["tracts"]
+        }
+
+        # Unir todas las streamlines en un solo objeto ArraySequence
+        # Unir todas las streamlines en un ArrayList()
+
+        self.streamlines = ArraySequence()
+        for tract, streamlines in self.streamlines_by_tract.items():
+            self.streamlines.extend(streamlines)
+
+        self.labels = np.concatenate([[label]*len(streamlines) for label, streamlines in self.streamlines_by_tract.items()])
+
+        # Filter out tracts with no streamlines
+        # self.streamlines_by_tract = {k: v for k, v in self.streamlines_by_tract.items() if len(v) > 0}
+        
+        # Normalize to unit sphere ============================================================
+        # # Obtener el centroide general de todas las streamlines
+        # self.general_centroid = np.mean([np.mean(streamline, axis=0) for streamlines in self.streamlines_by_tract.values() for streamline in streamlines], axis=0)
+        # # shift all streamlines to the general centroid (all points - general_centroid)
+        # # Shifted streamlines
+        # self.streamlines_by_tract = {tract_key: [streamline - self.general_centroid for streamline in streamlines] for tract_key, streamlines in self.streamlines_by_tract.items()}
+        # # Max radius of all streamlines
+        # self.max_radius = max([np.max(np.linalg.norm(streamline, axis=1)) for streamlines in self.streamlines_by_tract.values() for streamline in streamlines])
+
+        # # Normalize all streamlines
+        # self.normalized_streamlines = {tract_key: [streamline / self.max_radius for streamline in streamlines] for tract_key, streamlines in self.streamlines_by_tract.items()}
+
+        # =====================================================================================
+
+    def __len__(self):
+        return len(self.streamlines)
+    
+    def __getitem__(self, idx):
+        # Select streamline in idx and its label
+        streamline = self.streamlines[idx]
+        label = self.labels[idx]
+
+        # Create graph for the anchor example
+        anchor_graph = create_graph(streamline, label)
+
+        # Select a positive example from the same tract
+        positive_streamline = random.choice(self.streamlines_by_tract[label])
+        positive_graph = create_graph(positive_streamline, label)
+
+        # Select a negative example from a different tract
+        negative_label = random.choice([key for key in self.streamlines_by_tract.keys() if key != label])
+        negative_streamline = random.choice(self.streamlines_by_tract[negative_label])
+        negative_graph = create_graph(negative_streamline, negative_label)
+
+        if self.transform:
+            anchor_graph = self.transform(anchor_graph)
+            positive_graph = self.transform(positive_graph)
+            negative_graph = self.transform(negative_graph)
+
+        return anchor_graph, positive_graph, negative_graph
+
+        # # Select a random tract key
+        # tract_key = random.choice(list(self.streamlines_by_tract.keys()))
+        
+        # # Create graphs for anchor, positive and negative examples
+        # anchor_graph = create_graph(random.choice(self.streamlines_by_tract[tract_key]), tract_key)
+
+        # positive_graph = create_graph(random.choice(self.streamlines_by_tract[tract_key]), tract_key)
+
+        # negative_tract_key = random.choice([key for key in self.streamlines_by_tract.keys() if key != tract_key])
+        # negative_graph = create_graph(random.choice(self.streamlines_by_tract[negative_tract_key]), negative_tract_key)
+
+
+        # if self.transform:
+        #     anchor_graph = self.transform(anchor_graph)
+        #     positive_graph = self.transform(positive_graph)
+        #     negative_graph = self.transform(negative_graph)
+
+        # return anchor_graph, positive_graph, negative_graph
+
+def collate_triplet_ds(data_list):
+    graphs_anchor, graphs_pos, graphs_neg = zip(*data_list)
+    
+    graphs_anchor = Batch.from_data_list(graphs_anchor)
+    graphs_pos = Batch.from_data_list(graphs_pos)
+    graphs_neg = Batch.from_data_list(graphs_neg)
+
+    return graphs_anchor, graphs_pos, graphs_neg

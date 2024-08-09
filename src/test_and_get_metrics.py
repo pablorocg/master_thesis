@@ -25,6 +25,8 @@ from torch.utils.tensorboard import SummaryWriter
 # Comando para lanzar tensorboard en el navegador local a traves del puerto 8888 reenviado por ssh:
 # tensorboard --logdir=runs/embedding_visualization --host 0.0.0.0 --port 8888
 
+from torch_geometric.transforms import Compose, ToUndirected, NormalizeFeatures, AddSelfLoops, GCNNorm
+
 
 import pandas as pd
 import warnings
@@ -44,17 +46,17 @@ class CFG:
         self.seed = 42
       
         self.batch_size = 4096
-        self.encoder = "GCNEncoder_v2" # Las opciones son "GAT" o "GCN" o "HGPSL"
-        self.dataset = "HCP_105_without_CC"#"Tractoinferno" # "Tractoinferno o "FiberCup" o "HCP_105"
+        self.encoder = "GCNEncoder_infonce_finetuned" # Las opciones son "GAT" o "GCN" o "HGPSL"
+        self.dataset = "HCP_105"#"Tractoinferno" # "Tractoinferno o "FiberCup" o "HCP_105"
 
         if self.dataset == "HCP_105":
             self.ds_path = "/app/dataset/HCP_105"
-            self.pretrained_model_path = "/app/pretrained_models/encoder_HCP_105.pt"
+            self.pretrained_model_path = "/app/trained_models/checkpoint_HCP_105_finetuned_GCNEncoder_v2_0_0.69.pth"
             self.n_classes = 72 # 72 tractos o 71 tractos sin CC
 
         elif self.dataset == "HCP_105_without_CC":
             self.ds_path = "/app/dataset/HCP_105"
-            self.pretrained_model_path = "/app/trained_models/checkpoint_HCP_105_without_CC_GCNEncoder_v2_512_1.pth"
+            self.pretrained_model_path = "/app/trained_models/checkpoint_graph_classif_HCP_105_without_CC_GCNEncoder_v2_512_0.pth"
             self.n_classes = 71
 
         elif self.dataset == "Tractoinferno":
@@ -67,7 +69,7 @@ class CFG:
             self.pretrained_model_path = "/app/pretrained_models/encoder_fibercup.pt"
             self.n_classes = 7
 
-        self.embedding_projection_dim = 512
+        # self.embedding_projection_dim = 512
         
     
 cfg = CFG()
@@ -109,42 +111,159 @@ elif cfg.dataset == "FiberCup":
 
 
 
-# Crear el modelo, la función de pérdida y el optimizador
-if cfg.encoder == "GAT":# Graph Attention Network
-    encoder = GATEncoder(in_channels = 3, 
-                         hidden_channels = 16, 
-                         out_channels = 256)
 
-elif cfg.encoder == "GCN":# Graph Convolutional Network
-    encoder = GCNEncoder(in_channels = 3, 
-                         hidden_dim = 128, 
-                         out_channels = 128, 
-                         dropout = 0.15, 
-                         n_hidden_blocks = 2)
+#===============================================================================
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from encoders import (
+    ClassifierHead,
+    GATEncoder,
+    GCNEncoder,
+    ProjectionHead,
+    SiameseGraphNetwork
+)
+
+from torch_geometric.nn import GCNConv, global_mean_pool, BatchNorm
+
+from encoders import (
+    ClassifierHead,
+    GCNEncoder,
+    ProjectionHead,
+)
+
+
+class GraphConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, dropout=0.0):
+        super(GraphConvBlock, self).__init__()
+        self.conv = GCNConv(in_channels, out_channels)
+        self.bn = BatchNorm(out_channels)
+        self.relu = nn.LeakyReLU()
+        self.dropout = nn.Dropout(p=dropout) if dropout > 0 else None
+
+    def forward(self, x, edge_index):
+        x = self.conv(x, edge_index)
+        x = self.relu(x)
+        x = self.bn(x)
+        if self.training:  # Aplicación de Dropout solo durante el entrenamiento
+            x = self.dropout(x)
+        
+        return x
     
 
-elif cfg.encoder == "GCNEncoder_v2":
-    model = SiameseGraphNetworkGCN_v2(n_classes = cfg.n_classes).cuda()
-    # Compile the model into an optimized version:
-    model = torch.compile(model, dynamic=True)
+class GCNEncoder(nn.Module):
+    def __init__(self, in_channels, hidden_dim, out_channels, dropout, n_hidden_blocks):
+        super(GCNEncoder, self).__init__()
+        self.input_block = GraphConvBlock(in_channels, hidden_dim, dropout)
+        self.hidden_blocks = nn.ModuleList([GraphConvBlock(hidden_dim, hidden_dim, dropout) for _ in range(n_hidden_blocks - 1)])
+        self.output_block = GraphConvBlock(hidden_dim, out_channels, dropout)
+        # self.bn = BatchNorm(out_channels)
+
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+        x = self.input_block(x, edge_index)
+        for layer in self.hidden_blocks:
+            x = layer(x, edge_index)
+        x = self.output_block(x, edge_index)
+        # x = self.bn(x)
+
+        return global_mean_pool(x, batch) # (batch_size, out_channels)
 
 
+class ProjectionHead(nn.Module):
+    """
+    Proyección de las embeddings de texto a un espacio de dimensión reducida.
+    """
+    def __init__(
+        self,
+        embedding_dim,# Salida del modelo de lenguaje (768)
+        projection_dim, # Dimensión de la proyección (256)
+        # dropout=0.1
+    ):
+        super(ProjectionHead, self).__init__()
+        self.projection = nn.Linear(embedding_dim, projection_dim)
+        self.gelu = nn.GELU()
+        self.fc = nn.Linear(projection_dim, projection_dim)
+        # self.dropout = nn.Dropout(dropout)
+        self.layer_norm = nn.LayerNorm(projection_dim)
+
+    def forward(self, x):
+        projected = self.projection(x)
+        x = self.gelu(projected)
+        x = self.fc(x)
+        # x = self.dropout(x)
+        x = x + projected
+        x = self.layer_norm(x)
+        return x
+    
+
+class SiameseContrastiveGraphNetwork(nn.Module):
+    def __init__(self, encoder, projection_head):
+        super(SiameseContrastiveGraphNetwork, self).__init__()
+        self.encoder = encoder
+        self.projection_head = projection_head
+
+    def forward(self, graph):
+        x_1 = self.encoder(graph)
+        x_1 = self.projection_head(x_1)
+        return x_1
 
 
+model = SiameseContrastiveGraphNetwork(
+    encoder = GCNEncoder(
+        in_channels = 3, 
+        hidden_dim = 64, 
+        out_channels = 128, 
+        dropout = 0.5, 
+        n_hidden_blocks = 4
+    ),
 
-# # Crear el modelo
-# model = SiameseGraphNetwork(
-#     encoder = encoder,
-#     projection_head = ProjectionHead(embedding_dim = 128, 
-#                                      projection_dim = cfg.embedding_projection_dim),
-#     classifier = ClassifierHead(projection_dim = cfg.embedding_projection_dim, 
-#                                 n_classes = cfg.n_classes)
-# ).cuda()
+    projection_head = ProjectionHead(
+        embedding_dim = 128, 
+        projection_dim = 64
+    )
+)
 
-# Cargar el modelo preentrenado
+# model = torch.compile(model, dynamic=True)
+
+# Cargar pesos preentrenados
+# checkpoint = torch.load('/app/trained_models/checkpoint_HCP_105_GCN_512_5_infonce_0.9312.pth')
+
+# model.load_state_dict(checkpoint['model_state_dict'])
+
+# Eliminar capas Dropout y congelar los pesos
+model.encoder.input_block.dropout.p = 0.0
+for i in range(len(model.encoder.hidden_blocks)):
+    model.encoder.hidden_blocks[i].dropout.p = 0.0
+model.encoder.output_block.dropout.p = 0.0
+
+# Eliminar la cabeza de proyección
+model = model.encoder
+
+# Congelar todos los parámetros del encoder
+for param in model.parameters():
+    param.requires_grad = False
+
+# Definición del nuevo clasificador
+class GraphClassifier(nn.Module):
+    def __init__(self, encoder, n_classes):
+        super(GraphClassifier, self).__init__()
+        self.encoder = encoder
+        self.classifier = ClassifierHead(
+            projection_dim=128, 
+            n_classes=n_classes
+        )   
+
+    def forward(self, graph):
+        x = self.encoder(graph)
+        x = self.classifier(x)
+        return x
+
+# Instanciar el modelo de clasificación
+model = GraphClassifier(encoder=model, n_classes=cfg.n_classes).cuda()
+model = torch.compile(model, dynamic=True)
 model.load_state_dict(torch.load(cfg.pretrained_model_path)["model_state_dict"])
-
-
 
 
 
@@ -174,13 +293,23 @@ for idx_val, subject in tqdm(enumerate(test_data), total = len(test_data), desc 
        
 
         print(f"Subject: {subject['subject']}, Tract: {file.stem}")
-        ds = TestDataset(file, 
-                            handler,
-                            transform = MaxMinNormalization(dataset = cfg.dataset))
+        ds = TestDataset(
+            trk_file = file,
+            ds_handler = handler,
+            transform = Compose([
+                ToUndirected(), 
+                GCNNorm() 
+            ])
+        )
 
-        dl = DataLoader(ds, batch_size = cfg.batch_size, 
-                            shuffle = False, num_workers = 2,
-                            collate_fn = collate_test_ds)
+        dl = DataLoader(
+            dataset = ds, 
+            batch_size = cfg.batch_size, 
+            shuffle = False, 
+            num_workers = 2,
+            collate_fn = collate_test_ds
+        )
+
         if len(dl) != 0:
    
             for i, graph in enumerate(dl):
@@ -189,7 +318,7 @@ for idx_val, subject in tqdm(enumerate(test_data), total = len(test_data), desc 
                 target = graph.y
                 
                 with torch.no_grad():
-                    _, pred = model(graph)# Forward pass
+                    pred = model(graph)# Forward pass
                     
                 # Calcular métricas de test
                 tract_accuracy.update(pred, target)
@@ -237,7 +366,7 @@ for idx_val, subject in tqdm(enumerate(test_data), total = len(test_data), desc 
             tract_recall.reset()
 
 # Guardar el dataframe en un archivo csv
-df_subjects.to_csv(f"/app/resultados/results_{cfg.dataset}_{cfg.encoder}_v2.csv", index = False)
+df_subjects.to_csv(f"/app/resultados/results_{cfg.dataset}_{cfg.encoder}_v2_classif.csv", index = False)
 
 
     

@@ -121,7 +121,7 @@ class SiameseGraphNetworkGCN_v2(nn.Module):
             in_channels = 3, 
             hidden_dim = 128, 
             out_channels = 512, # 64
-            dropout = 0.25, 
+            dropout = 0.5, #0.25
             n_hidden_blocks = 2
         )
 

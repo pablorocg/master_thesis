@@ -165,15 +165,17 @@ class MultiTaskTripletLoss(nn.Module):
         loss (Tensor): El valor del multi-task siamese loss.
     """
 
-    def __init__(self, classification_weight=1.0, margin=1.0):
+    def __init__(self, classification_weight=1.0, margin=1.0, log=True, cross_entropy_weight_list = None):
         super(MultiTaskTripletLoss, self).__init__()
         self.margin = margin
         self.classification_weight = classification_weight
-        self.cross_entropy_loss = nn.CrossEntropyLoss()
+        self.cross_entropy_loss = nn.CrossEntropyLoss(None if cross_entropy_weight_list is None else torch.tensor(cross_entropy_weight_list))
+        self.log_dict = {}
+        self.log = log
 
     def forward(self, 
                 x_anchor, x_positive, x_negative, 
-                class_anchor, class_positive, class_negative, 
+                class_anchor, class_positive,  class_negative, 
                 target_anchor, target_positive, target_negative):
         
         # Verificar dimensiones de los embeddings
@@ -191,90 +193,143 @@ class MultiTaskTripletLoss(nn.Module):
         classification_loss_a = self.cross_entropy_loss(class_anchor, target_anchor)
         classification_loss_p = self.cross_entropy_loss(class_positive, target_positive)
         classification_loss_n = self.cross_entropy_loss(class_negative, target_negative)
+        class_avg_loss = (classification_loss_a + classification_loss_p + classification_loss_n) / 3
 
+        if self.log:
+            self.log_dict = {
+                "margin_loss": margin_loss,
+                "class_avg_loss": class_avg_loss,
+                "weighted_class_loss": self.classification_weight * class_avg_loss
+            }
+            
         # Combinar las pérdidas
-        loss = margin_loss + self.classification_weight * (classification_loss_a + classification_loss_p + classification_loss_n)
+        loss = margin_loss + self.classification_weight * class_avg_loss
         return loss
 
+#=========================================================================
+import torch
+import torch.nn.functional as F
+from torch import nn
 
 
-# class InfoNCELoss(nn.Module):
-#     """
-#     InfoNCE Loss Function.
 
-#     La función de pérdida se define como:
 
-#         L_NCE = -sum_{i=1}^{N} log(exp(sim(x_i, y_i) / τ) / sum_{j=1}^{K} exp(sim(x_i, y_j) / τ))
+class InfoNCE(nn.Module):
+    """
+    Calculates the InfoNCE loss for self-supervised learning.
+    This contrastive loss enforces the embeddings of similar (positive) samples to be close
+        and those of different (negative) samples to be distant.
+    A query embedding is compared with one positive key and with one or more negative keys.
 
-#     donde:
-#         sim(x, y) es la similitud (e.g., producto punto) entre x e y,
-#         τ es la temperatura,
-#         K es el número de muestras negativas más una muestra positiva.
+    References:
+        https://arxiv.org/abs/1807.03748v2
+        https://arxiv.org/abs/2010.05113
 
-#     Args:
-#         temperature (float): El valor de la temperatura τ. Default: 0.07
+    Args:
+        temperature: Logits are divided by temperature before calculating the cross entropy.
+        reduction: Reduction method applied to the output.
+            Value must be one of ['none', 'sum', 'mean'].
+            See torch.nn.functional.cross_entropy for more details about each option.
+        negative_mode: Determines how the (optional) negative_keys are handled.
+            Value must be one of ['paired', 'unpaired'].
+            If 'paired', then each query sample is paired with a number of negative keys.
+            Comparable to a triplet loss, but with multiple negatives per sample.
+            If 'unpaired', then the set of negative keys are all unrelated to any positive key.
 
-#     Inputs:
-#         x (Tensor): Embeddings de los ejemplos.
-#         y (Tensor): Embeddings de los ejemplos positivos correspondientes.
-#         negatives (Tensor): Embeddings de los ejemplos negativos.
+    Input shape:
+        query: (N, D) Tensor with query samples (e.g. embeddings of the input).
+        positive_key: (N, D) Tensor with positive samples (e.g. embeddings of augmented input).
+        negative_keys (optional): Tensor with negative samples (e.g. embeddings of other inputs)
+            If negative_mode = 'paired', then negative_keys is a (N, M, D) Tensor.
+            If negative_mode = 'unpaired', then negative_keys is a (M, D) Tensor.
+            If None, then the negative keys for a sample are the positive keys for the other samples.
 
-#     Output:
-#         loss (Tensor): El valor del InfoNCE loss.
-#     """
+    Returns:
+         Value of the InfoNCE Loss.
 
-#     def __init__(self, temperature=0.07):
-#         super(InfoNCELoss, self).__init__()
-#         self.temperature = temperature
+     Examples:
+        >>> loss = InfoNCE()
+        >>> batch_size, num_negative, embedding_size = 32, 48, 128
+        >>> query = torch.randn(batch_size, embedding_size)
+        >>> positive_key = torch.randn(batch_size, embedding_size)
+        >>> negative_keys = torch.randn(num_negative, embedding_size)
+        >>> output = loss(query, positive_key, negative_keys)
+    """
 
-#     def forward(self, x, y, negatives):
-#         # Concatenar las muestras positivas y negativas
-#         positives = torch.cat([x.unsqueeze(1), y.unsqueeze(1)], dim=1)
-#         negatives = negatives.unsqueeze(1)
-#         samples = torch.cat([positives, negatives], dim=1)
-
-#         # Calcular las similitudes
-#         sim = torch.matmul(x, samples.transpose(2, 1)) / self.temperature
-
-#         # Crear las etiquetas (positivas en la posición 1)
-#         labels = torch.zeros(sim.shape[0], dtype=torch.long, device=sim.device)
-
-#         # Calcular la pérdida usando Cross Entropy
-#         loss = F.cross_entropy(sim, labels)
-#         return loss
-
-class InfoNCELoss(nn.Module):
-    def __init__(self, temperature=0.5):
-        super(InfoNCELoss, self).__init__()
+    def __init__(self, temperature=0.1, reduction='mean', negative_mode='unpaired'):
+        super().__init__()
         self.temperature = temperature
-        self.criterion = nn.CrossEntropyLoss()
+        self.reduction = reduction
+        self.negative_mode = negative_mode
 
-    def forward(self, features, labels):
-        """
-        Args:
-            features: tensor de forma (batch_size, feature_dim)
-                      features de todos los grafos en el batch.
-            labels: tensor de forma (batch_size,)
-                    etiquetas de los grafos en el batch.
-        """
-        # Normalizar los features
-        features = F.normalize(features, dim=1)
+    def forward(self, query, positive_key, negative_keys=None):
+        return info_nce(query, positive_key, negative_keys,
+                        temperature=self.temperature,
+                        reduction=self.reduction,
+                        negative_mode=self.negative_mode)
 
-        batch_size = features.shape[0]
 
-        # Crear la matriz de similaridad
-        similarity_matrix = torch.matmul(features, features.T)
+def info_nce(query, positive_key, negative_keys=None, temperature=0.1, reduction='mean', negative_mode='unpaired'):
+    # Check input dimensionality.
+    if query.dim() != 2:
+        raise ValueError('<query> must have 2 dimensions.')
+    if positive_key.dim() != 2:
+        raise ValueError('<positive_key> must have 2 dimensions.')
+    if negative_keys is not None:
+        if negative_mode == 'unpaired' and negative_keys.dim() != 2:
+            raise ValueError("<negative_keys> must have 2 dimensions if <negative_mode> == 'unpaired'.")
+        if negative_mode == 'paired' and negative_keys.dim() != 3:
+            raise ValueError("<negative_keys> must have 3 dimensions if <negative_mode> == 'paired'.")
 
-        # Aplicar temperatura
-        similarity_matrix = similarity_matrix / self.temperature
+    # Check matching number of samples.
+    if len(query) != len(positive_key):
+        raise ValueError('<query> and <positive_key> must must have the same number of samples.')
+    if negative_keys is not None:
+        if negative_mode == 'paired' and len(query) != len(negative_keys):
+            raise ValueError("If negative_mode == 'paired', then <negative_keys> must have the same number of samples as <query>.")
 
-        # Crear las etiquetas para la pérdida de contraste
-        labels = labels.contiguous().view(-1, 1)
-        mask = torch.eq(labels, labels.T).float().to(labels.device)
+    # Embedding vectors should have same number of components.
+    if query.shape[-1] != positive_key.shape[-1]:
+        raise ValueError('Vectors of <query> and <positive_key> should have the same number of components.')
+    if negative_keys is not None:
+        if query.shape[-1] != negative_keys.shape[-1]:
+            raise ValueError('Vectors of <query> and <negative_keys> should have the same number of components.')
 
-        # Obtener los targets
-        targets = mask / mask.sum(1, keepdim=True)
+    # Normalize to unit vectors
+    query, positive_key, negative_keys = normalize(query, positive_key, negative_keys)
+    if negative_keys is not None:
+        # Explicit negative keys
 
-        # Calcular la pérdida
-        loss = -torch.sum(targets * F.log_softmax(similarity_matrix, dim=-1), dim=-1)
-        return loss.mean()
+        # Cosine between positive pairs
+        positive_logit = torch.sum(query * positive_key, dim=1, keepdim=True)
+
+        if negative_mode == 'unpaired':
+            # Cosine between all query-negative combinations
+            negative_logits = query @ transpose(negative_keys)
+
+        elif negative_mode == 'paired':
+            query = query.unsqueeze(1)
+            negative_logits = query @ transpose(negative_keys)
+            negative_logits = negative_logits.squeeze(1)
+
+        # First index in last dimension are the positive samples
+        logits = torch.cat([positive_logit, negative_logits], dim=1)
+        labels = torch.zeros(len(logits), dtype=torch.long, device=query.device)
+    else:
+        # Negative keys are implicitly off-diagonal positive keys.
+
+        # Cosine between all combinations
+        logits = query @ transpose(positive_key)
+
+        # Positive keys are the entries on the diagonal
+        labels = torch.arange(len(query), device=query.device)
+
+    return F.cross_entropy(logits / temperature, labels, reduction=reduction)
+
+
+def transpose(x):
+    return x.transpose(-2, -1)
+
+
+def normalize(*xs):
+    return [None if x is None else F.normalize(x, dim=-1) for x in xs]
