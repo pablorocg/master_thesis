@@ -1,54 +1,44 @@
 # Autor: Pablo Rocamora
 
-import matplotlib.pyplot as plt
+
 import neptune
-import numpy as np
+
 
 import time
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from collections import defaultdict
+
+
 from torch_geometric.transforms import Compose
 from dataset_handlers import (FiberCupHandler, 
                               HCPHandler, 
                               TractoinfernoHandler, 
                               HCP_Without_CC_Handler)
-from encoders import (
-    ClassifierHead,
-    GATEncoder,
-    GCNEncoder,
-    ProjectionHead,
-    SiameseGraphNetwork
-)
-from graph_transformer import GraphTransformerEncoder
-from loss_functions import MultiTaskTripletLoss
-from streamline_datasets import (
-    MaxMinNormalization,
-    CartesianToPolar,
-    StreamlineTestDataset,
-    StreamlineTripletDataset_v2,
-    StreamlineTripletDataset,
-    StreamlineSingleDataset,
-    collate_test_ds,
-    collate_triplet_ds,
-    fill_tracts_ds,
-    save_checkpoint,
-    seed_everything
-)
+# from encoders import (
+#     ClassifierHead,
+#     GCNEncoder,
+#     ProjectionHead,
+# )
+
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.classification import (
     MulticlassAUROC,
     MulticlassAccuracy,
-    MulticlassConfusionMatrix,
+
     MulticlassF1Score
 )
 from tqdm import tqdm
-import os
-from gcn_encoder_model_v2 import SiameseGraphNetworkGCN_v2
 
+import torch
+import torch.nn as nn
+from torch.nn import functional as F
+from encoders import GraphFiberNet
+from torch_geometric.transforms import Compose, ToUndirected,GCNNorm
+from torch_geometric.nn.models import GCN
+from custom_transforms import MaxMinNormalization
+from single_fiber_dataset import StreamlineSingleDataset, collate_single_ds
+from utils import save_checkpoint, seed_everything, get_dataset
 # Comando para lanzar tensorboard en el navegador local a través del puerto 8888 reenviado por ssh:
 # tensorboard --logdir=runs/embedding_visualization --host 0.0.0.0 --port 8888
 
@@ -62,13 +52,12 @@ class CFG:
         self.max_epochs = 10
         self.batch_size = 1024
         self.learning_rate = 1e-3
-        self.max_batches_per_subject = 150# Un buen valor es 500
+        
         self.optimizer = "AdamW"
-        self.classification_weight = 0.04
-        self.margin = 1.0
-        self.encoder = "GCNEncoder_v2"
-        self.embedding_projection_dim = 512
-        self.dataset = "HCP_105"#"Tractoinferno"
+        
+        self.encoder = "GCN"
+        self.embedding_projection_dim = 256
+        self.dataset = "HCP_105_without_CC"#"Tractoinferno"
 
         dataset_paths = {
             "HCP_105": ("/app/dataset/HCP_105", 72),
@@ -106,222 +95,46 @@ if log:
         "max_epochs": cfg.max_epochs,
         "batch_size": cfg.batch_size,
         "learning_rate": cfg.learning_rate,
-        "max_batches_per_subject": cfg.max_batches_per_subject,
+       
         "n_classes": cfg.n_classes,
         "embedding_projection_dim": cfg.embedding_projection_dim,
-        "classification_weight": cfg.classification_weight,
-        "margin": cfg.margin,
+      
         "encoder": cfg.encoder,
         "optimizer": cfg.optimizer
     }
 #===============================================================================
 
+data = get_dataset(cfg.dataset, cfg.ds_path)
+train_data = data["train"]
+valid_data = data["valid"]
+print(f"Train subjects: {len(train_data)}")
+print(f"Valid subjects: {len(valid_data)}")
+test_data = data["test"]
+handler = data["handler"]
 
-#==================================DATASET======================================
-# Cargar las rutas de los sujetos de entrenamiento, validación y test
-if cfg.dataset == "HCP_105":
-    handler = HCPHandler(path = cfg.ds_path, scope = "trainset")
-    train_data = handler.get_data()
-
-    handler = HCPHandler(path = cfg.ds_path, scope = "validset")
-    valid_data = handler.get_data()
-
-    handler = HCPHandler(path = cfg.ds_path, scope = "testset")
-    test_data = handler.get_data()
-
-    
-
-
-elif cfg.dataset == "HCP_105_without_CC":
-    handler = HCP_Without_CC_Handler(path = cfg.ds_path, scope = "trainset")
-    train_data = handler.get_data()
-
-    handler = HCP_Without_CC_Handler(path = cfg.ds_path, scope = "validset")
-    valid_data = handler.get_data()
-
-    handler = HCP_Without_CC_Handler(path = cfg.ds_path, scope = "testset")
-    test_data = handler.get_data()
-
-elif cfg.dataset == "Tractoinferno":
-    handler = TractoinfernoHandler(path = cfg.ds_path, scope = "trainset")
-    train_data = handler.get_data()
-    # Hacer que todos los sujetos tengan el mismo número de tractos 
-    train_data = fill_tracts_ds(train_data)
-
-    handler = TractoinfernoHandler(path = cfg.ds_path, scope = "validset")
-    valid_data = handler.get_data()
-
-    handler = TractoinfernoHandler(path = cfg.ds_path, scope = "testset")
-    test_data = handler.get_data()
-
-elif cfg.dataset == "FiberCup":
-    handler = FiberCupHandler(path = cfg.ds_path, scope = "trainset")
-    train_data = handler.get_data()
-
-    handler = FiberCupHandler(path = cfg.ds_path, scope = "validset")
-    valid_data = handler.get_data()
-
-    handler = FiberCupHandler(path = cfg.ds_path, scope = "testset")
-    test_data = handler.get_data()
-#===============================================================================
-
-
-#==================================MODEL========================================
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from encoders import (
-    ClassifierHead,
-    GATEncoder,
-    GCNEncoder,
-    ProjectionHead,
-    SiameseGraphNetwork
+pretrained_encoder = GCN(
+    in_channels = 3, 
+    hidden_channels = 256, 
+    out_channels = 256, 
+    num_layers = 5
 )
 
-from torch_geometric.nn import GCNConv, global_mean_pool, BatchNorm
+pretrained_encoder.load_state_dict(torch.load('/app/trained_models/checkpoint_HCP_105_without_CC_256_GCN_6_supconout_f1_0.8648.pth')['model_state_dict'])
 
-from encoders import (
-    ClassifierHead,
-    GCNEncoder,
-    ProjectionHead,
-)
-
-
-class GraphConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout=0.0):
-        super(GraphConvBlock, self).__init__()
-        self.conv = GCNConv(in_channels, out_channels)
-        self.bn = BatchNorm(out_channels)
-        self.relu = nn.LeakyReLU()
-        self.dropout = nn.Dropout(p=dropout) if dropout > 0 else None
-
-    def forward(self, x, edge_index):
-        x = self.conv(x, edge_index)
-        x = self.relu(x)
-        x = self.bn(x)
-        if self.training:  # Aplicación de Dropout solo durante el entrenamiento
-            x = self.dropout(x)
-        
-        return x
-    
-
-class GCNEncoder(nn.Module):
-    def __init__(self, in_channels, hidden_dim, out_channels, dropout, n_hidden_blocks):
-        super(GCNEncoder, self).__init__()
-        self.input_block = GraphConvBlock(in_channels, hidden_dim, dropout)
-        self.hidden_blocks = nn.ModuleList([GraphConvBlock(hidden_dim, hidden_dim, dropout) for _ in range(n_hidden_blocks - 1)])
-        self.output_block = GraphConvBlock(hidden_dim, out_channels, dropout)
-        # self.bn = BatchNorm(out_channels)
-
-    def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
-        x = self.input_block(x, edge_index)
-        for layer in self.hidden_blocks:
-            x = layer(x, edge_index)
-        x = self.output_block(x, edge_index)
-        # x = self.bn(x)
-
-        return global_mean_pool(x, batch) # (batch_size, out_channels)
+model = GraphFiberNet(
+    encoder = pretrained_encoder,
+    hidden_channels = 256,
+    n_classes = cfg.n_classes
+).cuda()
 
 
-class ProjectionHead(nn.Module):
-    """
-    Proyección de las embeddings de texto a un espacio de dimensión reducida.
-    """
-    def __init__(
-        self,
-        embedding_dim,# Salida del modelo de lenguaje (768)
-        projection_dim, # Dimensión de la proyección (256)
-        # dropout=0.1
-    ):
-        super(ProjectionHead, self).__init__()
-        self.projection = nn.Linear(embedding_dim, projection_dim)
-        self.gelu = nn.GELU()
-        self.fc = nn.Linear(projection_dim, projection_dim)
-        # self.dropout = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm(projection_dim)
-
-    def forward(self, x):
-        projected = self.projection(x)
-        x = self.gelu(projected)
-        x = self.fc(x)
-        # x = self.dropout(x)
-        x = x + projected
-        x = self.layer_norm(x)
-        return x
-    
-
-class SiameseContrastiveGraphNetwork(nn.Module):
-    def __init__(self, encoder, projection_head):
-        super(SiameseContrastiveGraphNetwork, self).__init__()
-        self.encoder = encoder
-        self.projection_head = projection_head
-
-    def forward(self, graph):
-        x_1 = self.encoder(graph)
-        x_1 = self.projection_head(x_1)
-        return x_1
+# model.encoder.load_state_dict(torch.load('/app/trained_models/checkpoint_Tractoinferno_256_GCN_3_supconout_f1_0.9154.pth')['model_state_dict'])
 
 
-model = SiameseContrastiveGraphNetwork(
-    encoder = GCNEncoder(
-        in_channels = 3, 
-        hidden_dim = 64, 
-        out_channels = 128, 
-        dropout = 0.5, 
-        n_hidden_blocks = 4
-    ),
-
-    projection_head = ProjectionHead(
-        embedding_dim = 128, 
-        projection_dim = 64
-    )
-)
-
-model = torch.compile(model, dynamic=True)
-
-# Cargar pesos preentrenados
-checkpoint = torch.load('/app/trained_models/checkpoint_HCP_105_GCN_512_5_infonce_0.9312.pth')
-
-model.load_state_dict(checkpoint['model_state_dict'])
-
-# Eliminar capas Dropout y congelar los pesos
-model.encoder.input_block.dropout.p = 0.0
-for i in range(len(model.encoder.hidden_blocks)):
-    model.encoder.hidden_blocks[i].dropout.p = 0.0
-model.encoder.output_block.dropout.p = 0.0
-
-# Eliminar la cabeza de proyección
-model = model.encoder
-
-# Congelar todos los parámetros del encoder
-for param in model.parameters():
-    param.requires_grad = False
-
-# Definición del nuevo clasificador
-class GraphClassifier(nn.Module):
-    def __init__(self, encoder, n_classes):
-        super(GraphClassifier, self).__init__()
-        self.encoder = encoder
-        self.classifier = ClassifierHead(
-            projection_dim=128, 
-            n_classes=n_classes
-        )   
-
-    def forward(self, graph):
-        x = self.encoder(graph)
-        x = self.classifier(x)
-        return x
-
-# Instanciar el modelo de clasificación
-model = GraphClassifier(encoder=model, n_classes=cfg.n_classes).cuda()
-model = torch.compile(model, dynamic=True)
-
-
-class_weights = [0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.018928406911583026, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.012988410533410502, 0.01292792165006919, 0.012958281051389589, 0.03744949301341532, 0.04831233844386465, 0.012962116949068162, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.0129685564603115, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.012961003067422231, 0.01292792165006919, 0.01292792165006919, 0.013229813391848906, 0.012962612069034894, 0.01313152278428651, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.014021172500152512, 0.013124793553369736, 0.012931246827824918, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.013054362475185993, 0.013347805473684228, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.013172810469463407, 0.013303589682533102, 0.013011816888483508, 0.01292792165006919]
+# class_weights = [0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.018928406911583026, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.012988410533410502, 0.01292792165006919, 0.012958281051389589, 0.03744949301341532, 0.04831233844386465, 0.012962116949068162, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.0129685564603115, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.012961003067422231, 0.01292792165006919, 0.01292792165006919, 0.013229813391848906, 0.012962612069034894, 0.01313152278428651, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.014021172500152512, 0.013124793553369736, 0.012931246827824918, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.013054362475185993, 0.013347805473684228, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.01292792165006919, 0.013172810469463407, 0.013303589682533102, 0.013011816888483508, 0.01292792165006919]
 # Loss function
 criterion = nn.CrossEntropyLoss(
-    # weight = torch.tensor(class_weights).cuda()
+    #weight = torch.tensor(class_weights).cuda()
 ).cuda()
     
 # Optimizer
@@ -368,12 +181,18 @@ subj_auroc_train = MulticlassAUROC(
 # subj_confusion_matrix = MulticlassConfusionMatrix(
 #     num_classes = cfg.n_classes
 # ).cuda()
-from torch_geometric.transforms import Compose, ToUndirected, NormalizeFeatures, AddSelfLoops, GCNNorm
+
 
 transforms = Compose([
-    ToUndirected(), 
-    GCNNorm() 
+    MaxMinNormalization(dataset = cfg.dataset),
+    # AddSelfLoops(), 
+    ToUndirected(),
+    # Cartesian2SphericalCoords(), 
+    # MaxMinNormalization(dataset = cfg.dataset),
+    GCNNorm()
+    
 ])
+
 
 
 
@@ -388,7 +207,8 @@ for epoch in range(cfg.max_epochs):
         train_ds = StreamlineSingleDataset(
             datadict = subject, 
             ds_handler = handler, 
-            transform = transforms#
+            transform = transforms,#
+            select_n_streamlines=200
         )
         
         train_dl = DataLoader(
@@ -396,7 +216,7 @@ for epoch in range(cfg.max_epochs):
             batch_size = cfg.batch_size,              
             shuffle = True, 
             num_workers = 4,
-            collate_fn = collate_test_ds
+            collate_fn = collate_single_ds
         )
         
         # Bucle de entrenamiento del modelo
@@ -415,6 +235,8 @@ for epoch in range(cfg.max_epochs):
 
             # Forward pass
             prediction = model(graph_batch)
+
+            prediction = F.log_softmax(prediction, dim=1)
           
             # Calcular la pérdida
             loss = criterion(prediction, graph_batch.y)
@@ -476,7 +298,8 @@ for epoch in range(cfg.max_epochs):
                 val_ds = StreamlineSingleDataset(
                     datadict = subject, 
                     ds_handler = handler, 
-                    transform = transforms##MaxMinNormalization(dataset = cfg.dataset)
+                    transform = transforms,
+                    select_n_streamlines=25
                 )
                 
                 val_dl = DataLoader(
@@ -484,19 +307,19 @@ for epoch in range(cfg.max_epochs):
                     batch_size = cfg.batch_size, 
                     shuffle = True, 
                     num_workers = 4,
-                    collate_fn = collate_test_ds
+                    collate_fn = collate_single_ds
                 )
 
                 for i, graph in enumerate(val_dl):
                         
-                    # Enviar a la gpu
+                    
                     graph = graph.to('cuda')
                     target = graph.y
 
                     with torch.no_grad():
                         pred = model(graph)
                     
-                    # calcular el loss de validación
+                    
                     loss = nn.functional.cross_entropy(pred, target)
                     subj_val_loss += loss.item()
 
@@ -525,20 +348,22 @@ for epoch in range(cfg.max_epochs):
                 subj_accuracy_val.reset()
                 subj_f1_val.reset()
                 
-                # Si es el último sujeto de validación, comprobar si es el mejor modelo y guardarlo
-                if idx_val == 10:
-                    val_loss = val_loss / 10
+                
+            val_loss = val_loss / len(valid_data)
 
-                    if log:
-                        run["val/avg_loss"].log(val_loss)
+
+
+            if log:
+                run["val/avg_loss"].log(val_loss)
+            
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                print(f"Saving best model with val loss: {best_val_loss}")
+                
+                # Save the model checkpoint
+                checkpoint_name = f'checkpoint_{cfg.dataset}_finetuned_{cfg.encoder}_{epoch}_{val_loss:.2f}.pth'
+                print(f"Saving checkpoint: {checkpoint_name}")
+                save_checkpoint(epoch, model, optimizer, loss, filename=checkpoint_name)
                     
-                    if val_loss < best_val_loss:
-                        best_val_loss = val_loss
-                        print(f"Saving best model with val loss: {best_val_loss}")
-                        
-                        # Save the model checkpoint
-                        checkpoint_name = f'checkpoint_{cfg.dataset}_finetuned_{cfg.encoder}_{epoch}_{val_loss:.2f}.pth'
-                        save_checkpoint(epoch, model, optimizer, loss, filename=checkpoint_name)
                     
-                    break
                 

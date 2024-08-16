@@ -13,6 +13,54 @@ from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
 import numpy as np
 import os
+from dipy.tracking.streamline import select_random_set_of_streamlines
+from utils import create_graph
+
+# SINGLE DATASET CLASS
+
+# class StreamlineSingleDataset(Dataset):
+#     def __init__(self, datadict: dict, ds_handler, transform=None, select_n_streamlines=1000):
+        
+#         self.subject = datadict # Subject data dictionary
+#         self.transform = transform # Transform to apply to each graph
+#         self.streamlines = ArraySequence()
+#         self.labels = []
+
+#         # Cargar los tractos, eliminar streamlines inválidas y construir las estructuras en un solo bucle
+#         for tract in self.subject["tracts"]:
+#             tract_label = ds_handler.get_label_from_tract(tract.stem)
+#             if select_n_streamlines is not None and select_n_streamlines >= 0:
+#                 tractogram = load_trk(str(tract), 'same', bbox_valid_check=False)
+#                 tractogram.remove_invalid_streamlines()
+#                 tractogram.streamlines = select_random_set_of_streamlines(tractogram.streamlines, select_n_streamlines)
+#             else:
+
+#                 # Cargar el tracto y remover las streamlines inválidas
+#                 tractogram = load_trk(str(tract), 'same', bbox_valid_check=False)
+#                 tractogram.remove_invalid_streamlines()  # Remover streamlines inválidas
+            
+#             # Extender las streamlines y etiquetas en una sola pasada
+#             self.streamlines.extend(tractogram.streamlines)
+#             self.labels.extend([tract_label] * len(tractogram.streamlines))
+
+#         # Convertir self.labels a un array de numpy
+#         self.labels = np.array(self.labels)  
+
+#     def __len__(self):
+#         return len(self.streamlines)
+
+#     def __getitem__(self, idx):
+#         # Select streamline in idx and its label
+#         streamline = self.streamlines[idx]
+#         label = self.labels[idx]
+
+#         # Create graph
+#         graph = create_graph(streamline, label)
+
+#         if self.transform:
+#             graph = self.transform(graph)
+#         return graph
+
 
 
 
@@ -41,20 +89,7 @@ class StreamlineTripletDataset(Dataset):
 
         # Filter out tracts with no streamlines
         self.streamlines_by_tract = {k: v for k, v in self.streamlines_by_tract.items() if len(v) > 0}
-        
-        # Normalize to unit sphere ============================================================
-        # # Obtener el centroide general de todas las streamlines
-        # self.general_centroid = np.mean([np.mean(streamline, axis=0) for streamlines in self.streamlines_by_tract.values() for streamline in streamlines], axis=0)
-        # # shift all streamlines to the general centroid (all points - general_centroid)
-        # # Shifted streamlines
-        # self.streamlines_by_tract = {tract_key: [streamline - self.general_centroid for streamline in streamlines] for tract_key, streamlines in self.streamlines_by_tract.items()}
-        # # Max radius of all streamlines
-        # self.max_radius = max([np.max(np.linalg.norm(streamline, axis=1)) for streamlines in self.streamlines_by_tract.values() for streamline in streamlines])
 
-        # # Normalize all streamlines
-        # self.normalized_streamlines = {tract_key: [streamline / self.max_radius for streamline in streamlines] for tract_key, streamlines in self.streamlines_by_tract.items()}
-
-        # =====================================================================================
 
     def __len__(self):
         return sum(len(streamlines) for streamlines in self.streamlines_by_tract.values())
@@ -87,52 +122,6 @@ def collate_triplet_ds(data_list):
     graphs_neg = Batch.from_data_list(graphs_neg)
 
     return graphs_anchor, graphs_pos, graphs_neg
-
-
-from dipy.tracking.streamline import select_random_set_of_streamlines
-
-class StreamlineSingleDataset(Dataset):
-    def __init__(self, datadict: dict, ds_handler, transform=None, select_n_streamlines=1000):
-        self.subject = datadict # Subject data dictionary
-        self.transform = transform # Transform to apply to each graph
-
-        if select_n_streamlines is not None and select_n_streamlines >= 0:
-            self.streamlines_by_tract = {# Dictionary with the streamlines of each tract
-                ds_handler.get_label_from_tract(tract.stem): select_random_set_of_streamlines(
-                    load_trk(str(tract), 'same', bbox_valid_check=False).streamlines, 
-                    select_n_streamlines
-                )
-                for tract in self.subject["tracts"]
-            }
-
-        else:
-            self.streamlines_by_tract = {# Dictionary with the streamlines of each tract
-                ds_handler.get_label_from_tract(tract.stem): load_trk(str(tract), 'same', bbox_valid_check=False).streamlines
-                for tract in self.subject["tracts"]
-            }
-
-        self.streamlines = ArraySequence()
-        for tract, streamlines in self.streamlines_by_tract.items():
-            self.streamlines.extend(streamlines)
-            
-        self.labels = np.concatenate([[label]*len(streamlines) for label, streamlines in self.streamlines_by_tract.items()])
-            
-
-    def __len__(self):
-        return len(self.streamlines)
-
-    def __getitem__(self, idx):
-        # Select streamline in idx and its label
-        streamline = self.streamlines[idx]
-        label = self.labels[idx]
-
-        # Create graph
-        graph = create_graph(streamline, label)
-
-        if self.transform:
-            graph = self.transform(graph)
-        return graph
-
 
 
 
@@ -316,7 +305,6 @@ class TestDataset(Dataset):
     def __init__(self, trk_file, ds_handler, transform=None):
 
         self.trk_file = load_trk(str(trk_file), 'same', bbox_valid_check=False)
-        # Compute the bounding box of the tract
         self.trk_file.remove_invalid_streamlines()
         
         self.streamlines = self.trk_file.streamlines
@@ -339,253 +327,6 @@ class TestDataset(Dataset):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-#================================================TRANSFORMS=====================================================
-class MaxMinNormalization(BaseTransform):
-    def __init__(self, dataset=None):
-        """
-        Initialize the normalization transform with optional max and min values.
-        If not provided, they should be computed from the dataset.
-        """
-        if dataset == "HCP_105" or dataset == "Tractoinferno" or dataset == "HCP_105_without_CC":
-        # Normalizacion para datos MNI-152
-
-            self.max_values = torch.tensor([74.99879455566406, 82.36431884765625, 97.47947692871094], dtype=torch.float)
-            self.min_values = torch.tensor([-76.92510986328125, -120.4773941040039, -81.27867126464844], dtype=torch.float)
-
-        elif dataset == "FiberCup":
-            self.max_values = torch.tensor([486.051, 454.08902, 25.558952], dtype=torch.float)
-            self.min_values = torch.tensor([72.0, 47.815502, -6.408], dtype=torch.float)
-        else:
-            # Lanzar error
-            raise ValueError("Dataset no reconocido")
-
-    def __call__(self, data: Data) -> Data:
-        """
-        Apply min-max normalization to the node features.
-        data.x is expected to be a tensor of shape [num_nodes, 3].
-        """
-        data.x = (data.x - self.min_values) / (self.max_values - self.min_values)
-        return data
-
-
-
-
-
-
-
-
-
-
-
-
-#================================================UTILS=====================================================
-
-def create_graph(streamline, tract_key):
-    nodes = torch.from_numpy(streamline).float()
-    edges = torch.tensor(
-        [[i, i+1] for i in range(nodes.size(0)-1)], dtype=torch.long
-    ).t().contiguous()
-    return Data(x=nodes, edge_index=edges, y=torch.tensor(tract_key, dtype=torch.long))
-
-
-def create_tracts_dict(subjects):
-    """
-    Crear un diccionario donde las claves son los nombres de los tractos y los valores son listas de archivos .trk.
-    
-    Args:
-        subjects (list): Lista de diccionarios, cada uno representando un sujeto y sus tractos.
-    
-    Returns:
-        dict: Diccionario con los tractos como claves y listas de rutas de archivos .trk como valores.
-    """
-    tracts_dict = defaultdict(list)
-    
-    for subject in subjects:
-        for tract_path in subject['tracts']:
-            # Obtener el nombre del tracto a partir del nombre del archivo (sin la extensión)
-            tract_name = tract_path.stem
-            # Agregar la ruta del archivo a la lista correspondiente en el diccionario
-            tracts_dict[tract_name].append(str(tract_path))
-    
-    return tracts_dict
-
-# Crear una lista de todos los tractos disponibles
-def get_all_tracts(tracts_dict):
-    return list(tracts_dict.keys())
-
-def fill_missing_tracts(subjects, tracts_dict):
-    """
-    Completar los tractos faltantes en cada sujeto seleccionando tractos aleatorios de otros sujetos.
-    
-    Args:
-        subjects (list): Lista de diccionarios, cada uno representando un sujeto y sus tractos.
-        tracts_dict (dict): Diccionario con los tractos como claves y listas de rutas de archivos .trk como valores.
-    
-    Returns:
-        list: Lista de diccionarios de sujetos con tractos completos.
-    """
-    all_tracts = get_all_tracts(tracts_dict)
-    
-    for subject in subjects:
-        subject_tract_names = {tract.stem for tract in subject['tracts']}
-        missing_tracts = set(all_tracts) - subject_tract_names
-        
-        for missing_tract in missing_tracts:
-            random_tract_path = random.choice(tracts_dict[missing_tract])
-            subject['tracts'].append(pathlib.Path(random_tract_path))
-    
-    return subjects
-
-def fill_tracts_ds(subjects):
-    tracts_dict = create_tracts_dict(subjects)
-    filled_subjects = fill_missing_tracts(subjects, tracts_dict)
-    return filled_subjects
-
-# Seed setting function
-def seed_everything(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-# Función para guardar un checkpoint
-def save_checkpoint(epoch, model, optimizer, loss, filename='checkpoint.pth'):
-    checkpoint_dir = '/app/trained_models'
-    checkpoint = {
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'loss': loss
-    }
-    torch.save(checkpoint, os.path.join(checkpoint_dir, filename))
-
-
-
-
-# class TrainSubjectStreamlineTripletDataset(Dataset):
-#     """
-#     Dataset para entrenar una red siamesa con triplet loss. Se generan tripletas de la forma (anchor, positive, negative).
-
-#     Args:
-#         datadict (dict): Diccionario con la información de los tractos de un sujeto.
-#         ds_handler (DatasetHandler): Objeto que maneja la información del dataset.
-
-#     Inputs:
-#         idx (int): Índice del ítem a obtener.
-
-#     Outputs:
-#         anchor_graph (Data): Grafo con la streamline de la clase seleccionada.
-#         positive_graph (Data): Grafo con una streamline del mismo tracto que la de anchor.
-#         negative_graph (Data): Grafo con una streamline de un tracto distinto al de anchor.
-#     """
-
-#     def __init__(self, datadict:dict, ds_handler, transform=None):
-        
-#         self.subject = datadict
-#         self.transform = transform 
-#         self.streamlines_by_tract = {}
-
-#         for tract in self.subject["tracts"]:
-#             tractogram = load_trk(str(tract), 'same', bbox_valid_check=False)
-#             self.streamlines_by_tract[ds_handler.get_label_from_tract(tract.stem)] = tractogram.streamlines
-
-#     def __len__(self):
-#         return np.sum([len(streamlines) for streamlines in self.streamlines_by_tract.values()])
-    
-#     def __getitem__(self, idx):
-#         # Seleccionar una key del diccionario de streamlines al azar (es un entero que representa una clase)
-#         tract_key = random.choice(list(self.streamlines_by_tract.keys()))
-
-#         # Seleccionar una streamline al azar del tracto seleccionado y crear un grafo
-#         streamline = random.choice(self.streamlines_by_tract[tract_key])
-#         nodes = torch.from_numpy(streamline).float()
-#         edges = torch.tensor([[i, i+1] for i in range(nodes.size(0)-1)] + [[i+1, i] for i in range(nodes.size(0)-1)], dtype=torch.long).T
-#         anchor_graph = Data(x = nodes, edge_index = edges, y = torch.tensor(tract_key, dtype = torch.long))
-
-#         # Seleccionar una streamline al azar del mismo tracto y crear un grafo
-#         positive_streamline = random.choice(self.streamlines_by_tract[tract_key])
-#         nodes = torch.from_numpy(positive_streamline).float()
-#         edges = torch.tensor([[i, i+1] for i in range(nodes.size(0)-1)] + [[i+1, i] for i in range(nodes.size(0)-1)], dtype=torch.long).T
-#         positive_graph = Data(x = nodes, edge_index = edges, y = torch.tensor(tract_key, dtype = torch.long))
-
-#         # Seleccionar un tracto distinto al azar
-#         while True:
-#             negative_tract_key = random.choice(list(self.streamlines_by_tract.keys()))
-#             if negative_tract_key != tract_key:
-#                 break
-
-#         # Seleccionar una streamline al azar del tracto distinto y crear un grafo
-#         negative_streamline = random.choice(self.streamlines_by_tract[negative_tract_key])
-#         nodes = torch.from_numpy(negative_streamline).float()
-#         edges = torch.tensor([[i, i+1] for i in range(nodes.size(0)-1)] + [[i+1, i] for i in range(nodes.size(0)-1)], dtype=torch.long).T
-#         negative_graph = Data(x = nodes, edge_index = edges, y = torch.tensor(negative_tract_key, dtype = torch.long))
-
-#         if self.transform:
-#             anchor_graph = self.transform(anchor_graph)
-#             positive_graph = self.transform(positive_graph)
-#             negative_graph = self.transform(negative_graph)
-
-#         return anchor_graph, positive_graph, negative_graph
-
-# def collate_pairs_triplet(data_list):
-#     graphs_anchor, graphs_pos, graphs_neg = zip(*data_list)
-#     return Batch.from_data_list(graphs_anchor), Batch.from_data_list(graphs_pos), Batch.from_data_list(graphs_neg)
-
-#================================================INFERENCE DATASET=====================================================
-# class TestSubjectStreamlineDataset(Dataset):
-#     """
-#     Este dataset es para validación y test y no se necesita balancear las clases ni generar pares positivos y negativos.
-#     Además, cuando se solicita un ítem, se debe retornar un solo grafo con una sola streamline que no sea al azar.
-#     Por ejemplo: si hay 3 tractos con 10, 10 y 5 streamlines respectivamente, y se solicita la fibra 12, se debe retornar la fibra 2 del segundo tracto.
-#     """
-#     def __init__(self, datadict: dict, ds_handler, transform=None):
-#         # Cargar todos los tractos de un sujeto en un diccionario de la forma {tracto: [streamlines], ...}
-#         self.subject = datadict
-#         self.transform = transform
-#         # Read trk files and store them in a dictionary where the key is the tract name and the value is a list of streamlines
-#         self.streamlines_by_tract = {}
-
-#         for tract in self.subject["tracts"]:
-#             tractogram = load_trk(str(tract), 'same', bbox_valid_check=False)
-#             # La key debe ser un entero descrito por ds_handler.get_label_from_tract
-#             self.streamlines_by_tract[ds_handler.get_label_from_tract(tract.stem)] = tractogram.streamlines  # Esto es un ArrayList de numpy arrays
-
-#     def __len__(self):
-#         return np.sum([len(streamlines) for streamlines in self.streamlines_by_tract.values()])
-
-#     def __getitem__(self, idx):
-#         # Encontrar el tracto y la streamline correspondiente dado un índice global
-#         cumulative_count = 0
-#         for tract, streamlines in self.streamlines_by_tract.items():
-#             if cumulative_count + len(streamlines) > idx:
-#                 streamline_idx = idx - cumulative_count
-#                 # Crear un grafo con la streamline seleccionada
-#                 nodes = torch.from_numpy(streamlines[streamline_idx]).float()
-#                 edges = torch.tensor([[i, i + 1] for i in range(nodes.size(0) - 1)] + [[i + 1, i] for i in range(nodes.size(0) - 1)], dtype=torch.long).T
-#                 graph = Data(x = nodes, edge_index = edges, y = torch.tensor(tract, dtype = torch.long))
-#                 if self.transform:
-#                     graph = self.transform(graph)
-#                 return graph
-#             cumulative_count += len(streamlines)
-#         raise IndexError("Index out of range")
-
-
 from nibabel.streamlines import ArraySequence
 class StreamlineTripletDataset_v2(Dataset):
     """
@@ -601,37 +342,38 @@ class StreamlineTripletDataset_v2(Dataset):
         self.subject = datadict # Subject data dictionary
 
         self.transform = transform # Transform to apply to each graph
-
-        self.streamlines_by_tract = {# Dictionary with the streamlines of each tract
-            ds_handler.get_label_from_tract(tract.stem): load_trk(str(tract), 'same', bbox_valid_check=False).streamlines
-            for tract in self.subject["tracts"]
-        }
-
-        # Unir todas las streamlines en un solo objeto ArraySequence
-        # Unir todas las streamlines en un ArrayList()
-
         self.streamlines = ArraySequence()
-        for tract, streamlines in self.streamlines_by_tract.items():
-            self.streamlines.extend(streamlines)
+        self.labels = []
 
-        self.labels = np.concatenate([[label]*len(streamlines) for label, streamlines in self.streamlines_by_tract.items()])
+        # Cargar los tractos, eliminar streamlines inválidas y construir las estructuras en un solo bucle
+        for tract in self.subject["tracts"]:
+            tract_label = ds_handler.get_label_from_tract(tract.stem)
+            
+            # Cargar el tracto y remover las streamlines inválidas
+            tractogram = load_trk(str(tract), 'same', bbox_valid_check=False)
+            tractogram.remove_invalid_streamlines()  # Remover streamlines inválidas
+            
+            # Extender las streamlines y etiquetas en una sola pasada
+            self.streamlines.extend(tractogram.streamlines)
+            self.labels.extend([tract_label] * len(tractogram.streamlines))
 
-        # Filter out tracts with no streamlines
-        # self.streamlines_by_tract = {k: v for k, v in self.streamlines_by_tract.items() if len(v) > 0}
+        # Convertir self.labels a un array de numpy
+        self.labels = np.array(self.labels)
+        # self.streamlines_by_tract = {# Dictionary with the streamlines of each tract
+        #     ds_handler.get_label_from_tract(tract.stem): load_trk(str(tract), 'same', bbox_valid_check=False).streamlines
+        #     for tract in self.subject["tracts"]
+        # }
         
-        # Normalize to unit sphere ============================================================
-        # # Obtener el centroide general de todas las streamlines
-        # self.general_centroid = np.mean([np.mean(streamline, axis=0) for streamlines in self.streamlines_by_tract.values() for streamline in streamlines], axis=0)
-        # # shift all streamlines to the general centroid (all points - general_centroid)
-        # # Shifted streamlines
-        # self.streamlines_by_tract = {tract_key: [streamline - self.general_centroid for streamline in streamlines] for tract_key, streamlines in self.streamlines_by_tract.items()}
-        # # Max radius of all streamlines
-        # self.max_radius = max([np.max(np.linalg.norm(streamline, axis=1)) for streamlines in self.streamlines_by_tract.values() for streamline in streamlines])
 
-        # # Normalize all streamlines
-        # self.normalized_streamlines = {tract_key: [streamline / self.max_radius for streamline in streamlines] for tract_key, streamlines in self.streamlines_by_tract.items()}
+        # # Unir todas las streamlines en un solo objeto ArraySequence
+        # # Unir todas las streamlines en un ArrayList()
 
-        # =====================================================================================
+        # self.streamlines = ArraySequence()
+        # for tract, streamlines in self.streamlines_by_tract.items():
+        #     self.streamlines.extend(streamlines)
+
+        # self.labels = np.concatenate([[label]*len(streamlines) for label, streamlines in self.streamlines_by_tract.items()])
+
 
     def __len__(self):
         return len(self.streamlines)
@@ -660,24 +402,6 @@ class StreamlineTripletDataset_v2(Dataset):
 
         return anchor_graph, positive_graph, negative_graph
 
-        # # Select a random tract key
-        # tract_key = random.choice(list(self.streamlines_by_tract.keys()))
-        
-        # # Create graphs for anchor, positive and negative examples
-        # anchor_graph = create_graph(random.choice(self.streamlines_by_tract[tract_key]), tract_key)
-
-        # positive_graph = create_graph(random.choice(self.streamlines_by_tract[tract_key]), tract_key)
-
-        # negative_tract_key = random.choice([key for key in self.streamlines_by_tract.keys() if key != tract_key])
-        # negative_graph = create_graph(random.choice(self.streamlines_by_tract[negative_tract_key]), negative_tract_key)
-
-
-        # if self.transform:
-        #     anchor_graph = self.transform(anchor_graph)
-        #     positive_graph = self.transform(positive_graph)
-        #     negative_graph = self.transform(negative_graph)
-
-        # return anchor_graph, positive_graph, negative_graph
 
 def collate_triplet_ds(data_list):
     graphs_anchor, graphs_pos, graphs_neg = zip(*data_list)

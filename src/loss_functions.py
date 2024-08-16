@@ -333,3 +333,117 @@ def transpose(x):
 
 def normalize(*xs):
     return [None if x is None else F.normalize(x, dim=-1) for x in xs]
+
+
+#=========================================================================
+class SupConOutLoss(nn.Module):
+    def __init__(self, temperature=0.07):
+        super(SupConOutLoss, self).__init__()
+        self.temperature = temperature
+        self.eps = 1e-7
+
+    def forward(self, features, labels):
+        """
+        Args:
+            features: Tensor of shape [batch_size, feature_dim].
+            labels: Tensor of shape [batch_size].
+        Returns:
+            A scalar loss.
+        """
+        # Normalize the features to have unit norm
+        features = F.normalize(features, dim=1)
+
+        # Compute similarity matrix (dot product between all pairs)
+        similarity_matrix = torch.matmul(features, features.T) / self.temperature
+
+        # Subtract large number from the diagonal (to exclude self-similarity)
+        logits_max, _ = torch.max(similarity_matrix, dim=1, keepdim=True)
+        logits = similarity_matrix - logits_max.detach()
+
+        # Compute the mask: positive samples have the same label, negatives are different
+        labels = labels.contiguous().view(-1, 1)
+        mask = torch.eq(labels, labels.T).float().to(features.device)
+
+        # Calculate log probabilities
+        exp_logits = torch.exp(logits) * (1 - torch.eye(features.size(0), device=features.device))
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + self.eps)
+
+        # Compute the mean of log-likelihood over positive pairs
+        mean_log_prob_pos = (mask * log_prob).sum(1) / (mask.sum(1) + self.eps)
+
+        # Loss is the negative of mean log-likelihood over positive pairs
+        loss = -mean_log_prob_pos.mean()
+
+        return loss
+
+
+
+class SupConInLoss(nn.Module):
+    def __init__(self, temperature=0.07):
+        super(SupConInLoss, self).__init__()
+        self.temperature = temperature
+        self.eps = 1e-7
+
+    def forward(self, features, labels):
+        """
+        Args:
+            features: Tensor of shape [batch_size, feature_dim].
+            labels: Tensor of shape [batch_size].
+        Returns:
+            A scalar loss.
+        """
+        # Normalize the features to have unit norm
+        features = F.normalize(features, dim=1)
+
+        # Compute similarity matrix (dot product between all pairs)
+        similarity_matrix = torch.matmul(features, features.T) / self.temperature
+
+        # Subtract large number from the diagonal (to exclude self-similarity)
+        logits_max, _ = torch.max(similarity_matrix, dim=1, keepdim=True)
+        logits = similarity_matrix - logits_max.detach()
+
+        # Compute the mask: positive samples have the same label, negatives are different
+        labels = labels.contiguous().view(-1, 1)
+        mask = torch.eq(labels, labels.T).float().to(features.device)
+
+        # Calculate log probabilities
+        exp_logits = torch.exp(logits) * (1 - torch.eye(features.size(0), device=features.device))
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + self.eps)
+
+        # Mean of exp(logits) over positive pairs
+        mean_exp_log_prob_pos = (mask * torch.exp(log_prob)).sum(1) / (mask.sum(1) + self.eps)
+
+        # Loss is the negative log of the average positive similarity
+        loss = -torch.log(mean_exp_log_prob_pos + self.eps).mean()
+
+        return loss
+    
+
+class SupConLossWithCrossEntropy(nn.Module):
+    def __init__(self, temperature=0.07, cross_entropy_weight=1.0):
+        super(SupConLossWithCrossEntropy, self).__init__()
+        self.temperature = temperature
+        self.cross_entropy_weight = cross_entropy_weight
+        self.supcon_out_loss = SupConOutLoss(temperature)
+        self.cross_entropy_loss = nn.CrossEntropyLoss()
+
+    def forward(self, logits, labels):
+        """
+        Args:
+            features: Tensor of shape [batch_size, feature_dim].
+            labels: Tensor of shape [batch_size].
+            logits: Tensor of shape [batch_size, num_classes].
+        Returns:
+            A scalar loss.
+        """
+        # Calculate the supervised contrastive loss
+        supcon_loss = self.supcon_out_loss(logits, labels)
+
+        output = F.log_softmax(logits, dim=-1)
+        # Calculate the cross-entropy loss
+        cross_entropy_loss = self.cross_entropy_loss(output, labels)
+
+        # Combine the losses
+        total_loss = supcon_loss + self.cross_entropy_weight * cross_entropy_loss
+
+        return total_loss, supcon_loss, cross_entropy_loss

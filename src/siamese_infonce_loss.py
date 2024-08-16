@@ -1,13 +1,11 @@
 # Autor: Pablo Rocamora
 
-import matplotlib.pyplot as plt
 import neptune
 import numpy as np
 import random
-
 import time
 import torch
-import torch.nn as nn
+import pandas as pd
 import torch.nn.functional as F
 import torch.optim as optim
 from collections import defaultdict
@@ -15,12 +13,8 @@ from dataset_handlers import (FiberCupHandler,
                               HCPHandler, 
                               TractoinfernoHandler, 
                               HCP_Without_CC_Handler)
-from encoders import (
-    GCNEncoder,
-    ProjectionHead
-)
-from graph_transformer import GraphTransformerEncoder
-from loss_functions import MultiTaskTripletLoss
+
+from sklearn.model_selection import StratifiedKFold
 from streamline_datasets import (
     MaxMinNormalization,
     StreamlineTestDataset,
@@ -31,16 +25,25 @@ from streamline_datasets import (
 )
 from loss_functions import InfoNCE
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-
-from tqdm import tqdm
-import os
-from gcn_encoder_model_v2 import SiameseGraphNetworkGCN_v2
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GCNConv,GraphConv, global_mean_pool, BatchNorm
-from torch.nn import ModuleList
 import torch.nn.functional as F
+from torch_geometric.nn.models import GCN, GAT, GraphSAGE, GIN
+from torch_geometric.nn import global_add_pool
+from tqdm import tqdm
+from torch_geometric.transforms import Compose, ToUndirected, NormalizeFeatures, AddSelfLoops, GCNNorm
+import os
+import torch.nn.functional as F
+from streamline_datasets import StreamlineSingleDataset
+import numpy as np
+import plotly.express as px
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, classification_report
+from tqdm import tqdm
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import StandardScaler
+from neptune.types import File
 # Comando para lanzar tensorboard en el navegador local a través del puerto 8888 reenviado por ssh:
 # tensorboard --logdir=/app/runs/HCP_105_without_CC_embedding_visualization_infonce_pretraining --host 0.0.0.0 --port 8888
 
@@ -86,15 +89,14 @@ if log:
 class CFG:
     def __init__(self):
         self.seed = 42
-        self.max_epochs = 10
-        self.batch_size = 512
-        self.learning_rate = 1e-3
-        self.max_batches_per_subject = 400# Un buen valor es 500
+        self.max_epochs = 15
+        self.batch_size = 2048
+        self.learning_rate = 3e-3
+        self.max_batches_per_subject = 200#350# Un buen valor es 500
         self.optimizer = "AdamW"
-        self.classification_weight = 1
-        self.margin = 1.0
         self.encoder = "GCN"
-        self.embedding_projection_dim = 512
+        self.temperature = 0.05
+        self.embedding_projection_dim = 256
         self.dataset = "HCP_105"#"Tractoinferno"
 
         dataset_paths = {
@@ -110,7 +112,6 @@ class CFG:
 # Initialize configuration
 cfg = CFG()
 if log:
-    writer = SummaryWriter(log_dir=f"runs/{cfg.dataset}_embedding_visualization_infonce_pretraining", filename_suffix=f"{time.time()}")
     run["config"] = {
         "dataset": cfg.dataset,
         "seed": cfg.seed,
@@ -118,10 +119,7 @@ if log:
         "batch_size": cfg.batch_size,
         "learning_rate": cfg.learning_rate,
         "max_batches_per_subject": cfg.max_batches_per_subject,
-        "n_classes": cfg.n_classes,
         "embedding_projection_dim": cfg.embedding_projection_dim,
-        "classification_weight": cfg.classification_weight,
-        "margin": cfg.margin,
         "encoder": cfg.encoder,
         "optimizer": cfg.optimizer
     }
@@ -136,151 +134,77 @@ if cfg.dataset == "HCP_105":
     handler = HCPHandler(path = cfg.ds_path, scope = "trainset")
     train_data = handler.get_data()
 
-    # handler = HCPHandler(path = cfg.ds_path, scope = "validset")
-    # valid_data = handler.get_data()
-
-    # handler = HCPHandler(path = cfg.ds_path, scope = "testset")
-    # test_data = handler.get_data()
+    handler = HCPHandler(path = cfg.ds_path, scope = "validset")
+    valid_data = handler.get_data()
 
 elif cfg.dataset == "HCP_105_without_CC":
     handler = HCP_Without_CC_Handler(path = cfg.ds_path, scope = "trainset")
     train_data = handler.get_data()
 
-    # handler = HCP_Without_CC_Handler(path = cfg.ds_path, scope = "validset")
-    # valid_data = handler.get_data()
-
-    # handler = HCP_Without_CC_Handler(path = cfg.ds_path, scope = "testset")
-    # test_data = handler.get_data()
+    handler = HCP_Without_CC_Handler(path = cfg.ds_path, scope = "validset")
+    valid_data = handler.get_data()
 
 elif cfg.dataset == "Tractoinferno":
     handler = TractoinfernoHandler(path = cfg.ds_path, scope = "trainset")
     train_data = handler.get_data()
     train_data = fill_tracts_ds(train_data)# Hacer que todos los sujetos tengan el mismo número de tractos 
 
-    # handler = TractoinfernoHandler(path = cfg.ds_path, scope = "validset")
-    # valid_data = handler.get_data()
-
-    # handler = TractoinfernoHandler(path = cfg.ds_path, scope = "testset")
-    # test_data = handler.get_data()
+    handler = TractoinfernoHandler(path = cfg.ds_path, scope = "validset")
+    valid_data = handler.get_data()
 
 elif cfg.dataset == "FiberCup":
     handler = FiberCupHandler(path = cfg.ds_path, scope = "trainset")
     train_data = handler.get_data()
 
-    # handler = FiberCupHandler(path = cfg.ds_path, scope = "validset")
-    # valid_data = handler.get_data()
-
-    # handler = FiberCupHandler(path = cfg.ds_path, scope = "testset")
-    # test_data = handler.get_data()
+    handler = FiberCupHandler(path = cfg.ds_path, scope = "validset")
+    valid_data = handler.get_data()
 
 
-
-
-
-#=========================MODELO================================
-class GraphConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout=0.0):
-        super(GraphConvBlock, self).__init__()
-        self.conv = GCNConv(in_channels, out_channels)
-        self.bn = BatchNorm(out_channels)
-        self.relu = nn.LeakyReLU()
-        self.dropout = nn.Dropout(p=dropout) if dropout > 0 else None
-
-    def forward(self, x, edge_index):
-        x = self.conv(x, edge_index)
-        x = self.relu(x)
-        x = self.bn(x)
-        x = self.dropout(x) if self.dropout is not None else x
-        return x
+if cfg.encoder == "GCN":
     
+    transforms = Compose([
+        MaxMinNormalization(dataset = cfg.dataset), 
+        ToUndirected(), 
+        GCNNorm()
+    ])
 
-class GCNEncoder(nn.Module):
-    def __init__(self, in_channels, hidden_dim, out_channels, dropout, n_hidden_blocks):
-        super(GCNEncoder, self).__init__()
-        self.input_block = GraphConvBlock(in_channels, hidden_dim, dropout)
-        self.hidden_blocks = ModuleList([GraphConvBlock(hidden_dim, hidden_dim, dropout) for _ in range(n_hidden_blocks - 1)])
-        self.output_block = GraphConvBlock(hidden_dim, out_channels, dropout)
-        # self.bn = BatchNorm(out_channels)
-
-    def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
-        x = self.input_block(x, edge_index)
-        for layer in self.hidden_blocks:
-            x = layer(x, edge_index)
-        x = self.output_block(x, edge_index)
-        # x = self.bn(x)
-
-        return global_mean_pool(x, batch) # (batch_size, out_channels)
-
-
-class ProjectionHead(nn.Module):
-    """
-    Proyección de las embeddings de texto a un espacio de dimensión reducida.
-    """
-    def __init__(
-        self,
-        embedding_dim,# Salida del modelo de lenguaje (768)
-        projection_dim, # Dimensión de la proyección (256)
-        # dropout=0.1
-    ):
-        super(ProjectionHead, self).__init__()
-        self.projection = nn.Linear(embedding_dim, projection_dim)
-        self.gelu = nn.GELU()
-        self.fc = nn.Linear(projection_dim, projection_dim)
-        # self.dropout = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm(projection_dim)
-
-    def forward(self, x):
-        projected = self.projection(x)
-        x = self.gelu(projected)
-        x = self.fc(x)
-        # x = self.dropout(x)
-        x = x + projected
-        x = self.layer_norm(x)
-        return x
-    
-
-class SiameseContrastiveGraphNetwork(nn.Module):
-    def __init__(self, encoder, projection_head):
-        super(SiameseContrastiveGraphNetwork, self).__init__()
-        self.encoder = encoder
-        self.projection_head = projection_head
-
-    def forward(self, graph):
-        x_1 = self.encoder(graph)
-        x_1 = self.projection_head(x_1)
-        # x1_norm = F.normalize(x_1, p=2, dim=1)
-        return x_1
-
-# ========================================================================
-
-
-
-
-
-model = SiameseContrastiveGraphNetwork(
-    encoder = GCNEncoder(
+    model = GCN(
         in_channels = 3, 
-        hidden_dim = 64, 
-        out_channels = 128, 
-        dropout = 0.5, 
-        n_hidden_blocks = 4
-    ),
+        hidden_channels = cfg.embedding_projection_dim, 
+        out_channels = cfg.embedding_projection_dim, 
+        num_layers = 5
+    ).cuda()
 
-    projection_head = ProjectionHead(
-        embedding_dim = 128, 
-        projection_dim = 64
-    )
-).cuda()
-model = torch.compile(model, dynamic=True)
+elif cfg.encoder == "GAT":
+    model = GAT(
+        in_channels = 3,
+        hidden_channels = cfg.embedding_projection_dim,
+        out_channels = cfg.embedding_projection_dim,
+        num_layers = 5
+    ).cuda()
+    
+elif cfg.encoder == "GraphSAGE":
+    model = GraphSAGE(
+        in_channels = 3,
+        hidden_channels = cfg.embedding_projection_dim,
+        out_channels = cfg.embedding_projection_dim,
+        num_layers = 5
+    ).cuda()
 
-
-
+elif cfg.encoder == "GIN":
+    model = GIN(
+        in_channels = 3,
+        hidden_channels = cfg.embedding_projection_dim,
+        out_channels = cfg.embedding_projection_dim,
+        num_layers = 5
+    ).cuda()
 
 
 
 # Definir loss function, optimizador y scheduler
-criterion = InfoNCE(temperature=0.1).cuda()
+criterion = InfoNCE(
+    temperature=cfg.temperature
+).cuda()
 
 optimizer = torch.optim.AdamW(
     model.parameters(), 
@@ -291,21 +215,14 @@ optimizer = torch.optim.AdamW(
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer = optimizer,
     mode = 'min', 
-    factor = 0.8, 
-    patience = 15, 
+    factor = 0.7, 
+    patience = 20, 
     verbose = True
 )
 
-from torch_geometric.transforms import Compose, ToUndirected, NormalizeFeatures, AddSelfLoops, GCNNorm
-transforms = Compose([
-    # AddSelfLoops(), 
-    ToUndirected(), 
-    # MaxMinNormalization(dataset = cfg.dataset),
-    GCNNorm() 
-    # NormalizeFeatures()
-])
 
 
+best_f1 = 0
 # Entrenar el modelo
 for epoch in range(cfg.max_epochs):
 
@@ -327,7 +244,7 @@ for epoch in range(cfg.max_epochs):
             dataset = train_ds, 
             batch_size = cfg.batch_size, 
             shuffle = True, 
-            num_workers = 4,
+            num_workers = 2,
             collate_fn = collate_triplet_ds
         )
         
@@ -349,9 +266,36 @@ for epoch in range(cfg.max_epochs):
             optimizer.zero_grad()
 
             # Forward pass
-            embedding_a = model(graph_anch)# Batch size necesario para calcular la media de los embeddings
-            embedding_p = model(graph_pos)
-            embedding_n = model(graph_neg)
+            node_embeddings_a = model(
+                x = graph_anch.x,
+                edge_index = graph_anch.edge_index,
+                batch = graph_anch.batch,
+                batch_size = cfg.batch_size
+            )
+
+            node_embeddings_p = model(
+                x = graph_pos.x,
+                edge_index = graph_pos.edge_index,
+                batch = graph_pos.batch,
+                batch_size = cfg.batch_size
+            )
+
+            node_embeddings_n = model(
+                x = graph_neg.x,
+                edge_index = graph_neg.edge_index,
+                batch = graph_neg.batch,
+                batch_size = cfg.batch_size
+            )
+
+            graph_embeddings_a = global_add_pool(node_embeddings_a, graph_anch.batch)
+            graph_embeddings_p = global_add_pool(node_embeddings_p, graph_pos.batch)
+            graph_embeddings_n = global_add_pool(node_embeddings_n, graph_neg.batch)
+
+            # Normalizar los embeddings
+            embedding_a = F.normalize(graph_embeddings_a, p=2, dim=-1)
+            embedding_p = F.normalize(graph_embeddings_p, p=2, dim=-1)
+            embedding_n = F.normalize(graph_embeddings_n, p=2, dim=-1)
+            
 
             # Calcular la pérdida
             loss = criterion(embedding_a, embedding_p, embedding_n)
@@ -385,116 +329,164 @@ for epoch in range(cfg.max_epochs):
             run["train/lr"].log(optimizer.param_groups[0]['lr'])
             run["train/subject/loss"].log(avg_loss)
 
-    # Save the model checkpoint
-    checkpoint_name = f'checkpoint_{cfg.dataset}_{cfg.encoder}_{cfg.embedding_projection_dim}_{epoch}_infonce_{avg_loss:.4f}.pth'
-    save_checkpoint(epoch, model, optimizer, loss, filename=checkpoint_name)
+        # VALIDACIÓN
 
+        # Validación del modelo cada 15 sujetos
+        if idx_suj % 25 == 0 and idx_suj > 0:
+            print(f"[VALIDATION] Epoch {epoch+1}/{cfg.max_epochs}")
+            # Tensor al que ir concatenando las embeddings de los sujetos
+            embeddings = torch.tensor([]).to('cuda')
+            # Tensor al que ir concatenando las etiquetas de los sujetos
+            labels = torch.tensor([]).to('cuda')
+            # Tensor al que ir concatenando los nombres de los sujetos
+            subject_names = []
 
+            for idx_suj, subject in enumerate(valid_data):# Iterar sobre los sujetos de entrenamiento
 
-
-
-
-
-
-
-
-
-
-
-
-
-    # # Fase de validación del modelo
-    # model.eval()
-    # for idx_val, subject in enumerate(valid_data):
-        
-    #     val_ds = StreamlineTestDataset(
-    #         subject, 
-    #         handler, 
-    #         transform = MaxMinNormalization(dataset = cfg.dataset)
-    #     )
-        
-    #     val_dl = DataLoader(
-    #         val_ds, 
-    #         batch_size = cfg.batch_size, 
-    #         shuffle = False, 
-    #         num_workers = 1,
-    #         collate_fn = collate_test_ds
-    #     )
-        
-    #     # Diccionario para guardar los embeddings de los grafos por clase cuyas claves son las etiquetas 0 - 71
-    #     embeddings_list_by_class = defaultdict(list)
-    #     max_embeddings_per_class = 100
-        
-
-    #     with torch.no_grad():
-    #         for i, graph in enumerate(val_dl):
-                
-    #             # Enviar a la gpu
-    #             graph = graph.to('cuda')
-    #             target = graph.y
-
-    #             # Forward pass
-    #             embedding = model(graph)# Batch size necesario para calcular la media de los embeddings
-
-
-    #             # Guardar los embeddings y etiquetas
-    #             if idx_val == 0:
-
-    #                 embedding = embedding.cpu().numpy()
-    #                 target = graph.y.cpu().numpy()
-
-    #                 # Guardar embeddings y etiquetas en el diccionario por clase
-    #                 for emb, label in zip(embedding, target):
-    #                     if len(embeddings_list_by_class[label]) < max_embeddings_per_class:
-    #                         embeddings_list_by_class[label].append(emb)
+                valid_ds = StreamlineSingleDataset(
+                    datadict = subject, 
+                    ds_handler = handler, 
+                    transform = transforms,
+                    select_n_streamlines = 20
+                )
                     
-    #             # if i % 25 == 0:
-    #             #     print(f"[VAL] Epoch {epoch+1}/{cfg.max_epochs} - Subj {idx_val} - Batch {i} - Acc.: {subj_accuracy_val.compute().item():.4f}, F1: {subj_f1_val.compute().item():.4f}, AUROC: {subj_auroc_val.compute().item():.4f}")
+                valid_dl = DataLoader(
+                    dataset = valid_ds, 
+                    batch_size = cfg.batch_size,              
+                    shuffle = False, 
+                    num_workers = 4,
+                    collate_fn = collate_test_ds
+                )
+                    
+                # Bucle de entrenamiento del modelo
+                prog_bar = tqdm(
+                    iterable = valid_dl
+                )
 
-    #         # Para el idx_val = 1, guardar los embeddings de los grafos con sus etiquetas para visualizarlos en TensorBoard Projector
-    #         if idx_val == 0:
+                for i, graph_batch in enumerate(prog_bar):
+                    # Enviar a la gpu
+                    graph_batch = graph_batch.to('cuda')
+                    
+                    
+                    with torch.no_grad():
+                        # Forward pass
+                        prediction = model(
+                            x = graph_batch.x,
+                            edge_index = graph_batch.edge_index,
+                            batch = graph_batch.batch,
+                            batch_size = cfg.batch_size
+                        )
+                                           
+                    # global add pooling
+                    prediction = global_add_pool(prediction, graph_batch.batch)
+                    prediction = F.normalize(prediction, p=2, dim=-1)
+                        
+                    # Concatenar las embeddings, etiquetas y nombres de sujetos
+                    embeddings = torch.cat((embeddings, prediction), dim=0)
+                    labels = torch.cat((labels, graph_batch.y), dim=0)
+                    subject_names.extend([f'sujeto_{idx_suj}'] * prediction.size(0))
 
-    #             # Preparar los datos para TensorBoard
-    #             all_embeddings = []
-    #             all_labels = []
 
-    #             for label, embeddings in embeddings_list_by_class.items():
-    #                 all_embeddings.extend(embeddings)
-    #                 # Obtener la etiqueta textual de la clase a través del handler
-    #                 label = handler.get_tract_from_label(label)
-    #                 print(label)
-    #                 all_labels.extend([label] * len(embeddings))
-
-    #             # Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at /opt/conda/conda-bld/pytorch_1704987394225/work/torch/csrc/utils/tensor_new.cpp:275.)
-    #             # Convertir listas a numpy.ndarray
-    #             all_embeddings = np.array(all_embeddings)
-    #             all_labels = np.array(all_labels)
-
-    #             # Convertir a tensores
-    #             all_embeddings = torch.tensor(all_embeddings)
-    #             all_labels = all_labels.tolist()  # TensorBoard necesita etiquetas como lista de strings
-
-
-    #             # Guardar los embeddings y etiquetas en TensorBoard
-    #             writer.add_embedding(
-    #                 all_embeddings, 
-    #                 metadata = all_labels, 
-    #                 global_step = epoch,
-    #                 tag = f"{cfg.dataset}_{cfg.encoder}_{cfg.embedding_projection_dim}_{time.time()}"
-    #             ) 
+            # Convertir a CPU para t-SNE
+            embeddings = embeddings.cpu().numpy()
+            labels = labels.cpu().numpy()
 
             
+            # Estandarizar las embeddings antes de aplicar t-SNE
+            # scaler = StandardScaler()
+            # embeddings_scaled = scaler.fit_transform(embeddings)
 
+            # Aplicar t-SNE
+            tsne = TSNE(n_components=2, random_state=42)
+            embeddings_tsne = tsne.fit_transform(embeddings)
 
+            # Crear DataFrame para visualización con Plotly
+            
+            df = pd.DataFrame({
+                'TSNE Component 1': embeddings_tsne[:, 0],
+                'TSNE Component 2': embeddings_tsne[:, 1],
+                'Label': [handler.get_tract_from_label(int(label)) for label in labels],
+                'Subject': subject_names
+            })
+            df['Label'] = df['Label'].astype(str) 
+            # Visualizar los resultados con Plotly
+            fig = px.scatter(
+                df, x='TSNE Component 1', y='TSNE Component 2', color='Label',
+                title='t-SNE Visualization of Embeddings',
+                hover_data=['Subject'],
+                labels={'Label': 'Class'},
+                color_discrete_sequence=px.colors.qualitative.Set1,
+                width=1000, height=1000
+            )
+
+            # Guardar la visualización como png
+            
+            fig.write_html(f"/app/pruebas/{cfg.dataset}_{cfg.encoder}_{epoch}_infonce_t-SNE_visualization.html")
+            # Loggear la visualización en Neptune
+            if log:
+                run["html"].upload(File(f"/app/pruebas/{cfg.dataset}_{cfg.encoder}_{epoch}_infonce_t-SNE_visualization.html"))
+                # run["val/t-SNE_visualization"].upload()
+            
+        
+            # Clasificación con KNN
+            accs, f1s, precisions, recalls = [], [], [], []
+            folds = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+            for train_index, test_index in folds.split(embeddings, labels):
+                X_train, X_test = embeddings[train_index], embeddings[test_index]
+                y_train, y_test = labels[train_index], labels[test_index]
+                
+                knn = KNeighborsClassifier(n_neighbors=5)
+                knn.fit(X_train, y_train)
+                y_pred = knn.predict(X_test)
+                
+                acc = accuracy_score(y_test, y_pred)
+                f1 = f1_score(y_test, y_pred, average='weighted')
+                precision = precision_score(y_test, y_pred, average='weighted')
+                recall = recall_score(y_test, y_pred, average='weighted')
+                
+                accs.append(acc)
+                f1s.append(f1)
+                precisions.append(precision)
+                recalls.append(recall)
+
+            mean_acc = np.mean(accs)
+            std_acc = np.std(accs)
+            mean_f1 = np.mean(f1s)
+            std_f1 = np.std(f1s)
+            mean_precision = np.mean(precisions)
+            std_precision = np.std(precisions)
+            mean_recall = np.mean(recalls)
+            std_recall = np.std(recalls)
+
+            # Classification report con el ultimo fold
+            cr = classification_report(
+                y_test, 
+                y_pred, 
+                target_names=[handler.get_tract_from_label(int(label)) for label in np.unique(labels)]
+            )
+
+            print(cr)
+            print(f"Accuracy: {mean_acc:.4} +/- {std_acc:.4}")
+            print(f"F1: {mean_f1:.4} +/- {std_f1:.4}")
+            print(f"Precision: {mean_precision:.4} +/- {std_precision:.4}")
+            print(f"Recall: {mean_recall:.4} +/- {std_recall:.4}")
+            
+
+            if log:
+                run["val/accuracy"].log(mean_acc)
+                run["val/f1"].log(mean_f1)
+                run["val/precision"].log(mean_precision)
+                run["val/recall"].log(mean_recall)
                 
 
-    #     if idx_val == 1:
-    #         break
+            if best_f1 < mean_f1:
+                best_f1 = mean_f1
+                checkpoint_name = f'checkpoint_{cfg.dataset}_{cfg.embedding_projection_dim}_{cfg.encoder}_{epoch}_infonce_f1_{mean_f1:.4f}.pth'
+                save_checkpoint(epoch, model, optimizer, loss, filename=checkpoint_name)
 
-# Cerrar el SummaryWriter
-# writer.close()
 
- 
+
+
 
             
                 
